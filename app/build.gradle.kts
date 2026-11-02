@@ -12,14 +12,14 @@ android {
         applicationId = "com.crumbkeeper.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.2-dev"
+        versionCode = 4
+        versionName = "0.1.3-dev"
     }
     buildTypes {
         debug {
             // Side-by-side prototype: preserve the original tester install/data, since
             // GitHub-hosted debug signing keys need not match between runner builds.
-            applicationIdSuffix = ".dev2"
+            applicationIdSuffix = ".dev3"
         }
         release {
             isMinifyEnabled = false

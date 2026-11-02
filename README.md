@@ -15,7 +15,7 @@ Crumbkeeper turns a tablet or phone into a dedicated kitchen workspace: ingredie
 
 ## Project status
 
-**Planning / specification stage.** No Android implementation, APK, or tested release is represented by this repository yet.
+**Android prototype available.** The debug test builds run on Android; no production release or stable-signing/update channel yet.
 
 ## Project documentation
 
@@ -40,3 +40,7 @@ The first native Android prototype source is now in `app/` (**v0.1.0-dev**, GitH
 **Do not depend on this prototype for locked-screen alarms:** Android notification/alarm integration is not implemented yet.
 
 First successful CI build: [Run #2](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41523550547) — download the `Crumbkeeper-v0.1.0-debug` artifact from the workflow. This is a debug testing build, **not a production release**.
+
+### v0.1.3-dev — Cook & Share first
+
+Saved recipe cards prioritize **Cook** and **Share**. Editing has moved to a less prominent **More** menu; the original recipe needs separate confirmations to open for editing and to replace on save. [Read the saved-recipe protection design](docs/RECIPE_PROTECTION.md). Existing debug installations remain separate until signing is stabilized.

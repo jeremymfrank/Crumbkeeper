@@ -71,6 +71,8 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     var screen by remember { mutableStateOf(if (cooking != null && snapshot != null) "cook" else "library") }
     var draft by remember { mutableStateOf(Recipe()) }
     var existing by remember { mutableStateOf(false) }
+    var editRequest by remember { mutableStateOf<Recipe?>(null) }
+    var confirmSaveChanges by remember { mutableStateOf(false) }
     var importWarnings by remember { mutableStateOf(emptyList<String>()) }
     var unplaced by remember { mutableStateOf(emptyList<String>()) }
     var confirmFinish by remember { mutableStateOf(false) }
@@ -143,16 +145,29 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     }
 
     fun newEditor(recipe: Recipe, alreadyExists: Boolean = false, warnings: List<String> = emptyList(), leftover: List<String> = emptyList()) {
-        draft = recipe; existing = alreadyExists; importWarnings = warnings; unplaced = leftover; screen = "editor"
+        draft = recipe
+        existing = alreadyExists
+        importWarnings = warnings
+        unplaced = leftover
+        screen = "editor"
+        // Drafts are separate from the saved recipe and must not overwrite it.
+        prefs.edit().putString("editor-draft", encodeRecipe(recipe).toString()).apply()
     }
     fun saveDraft() { prefs.edit().putString("editor-draft", encodeRecipe(draft).toString()).apply() }
-    fun saveRecipe(copy: Boolean) {
-        val saved = if (copy) draft.copy(id = newId()) else draft
-        store.save(saved)
-        recipes.removeAll { it.id == saved.id }
-        recipes.add(0, saved)
-        prefs.edit().remove("editor-draft").apply()
-        screen = "library"
+    fun saveRecipe(copy: Boolean, confirmedOriginal: Boolean = false) {
+        runCatching {
+            val saved = if (copy) RecipeEditSafety.editableCopy(draft)
+                else RecipeEditSafety.requireSafeSave(
+                    draft, existing, recipes.map { it.id }.toSet(), confirmedOriginal
+                )
+            store.save(saved)
+            recipes.removeAll { it.id == saved.id }
+            recipes.add(0, saved)
+            prefs.edit().remove("editor-draft").apply()
+            existing = false
+            confirmSaveChanges = false
+            screen = "library"
+        }.onFailure { transferMessage = "Recipe not saved: ${it.message}" }
     }
     fun setSnapshot(new: SessionSnapshot) { snapshot = new; sessionStore.save(new) }
     fun updateTimer(id: String, action: String) {
@@ -230,17 +245,24 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                     },
                     resumeDraft = {
                         prefs.getString("editor-draft", null)?.let { json ->
-                            runCatching { newEditor(decodeRecipe(org.json.JSONObject(json))) }
+                            runCatching {
+                                val recoveredDraft = decodeRecipe(org.json.JSONObject(json))
+                                newEditor(recoveredDraft,
+                                    alreadyExists = recipes.any { it.id == recoveredDraft.id })
+                            }.onFailure { transferMessage = "Could not reopen draft: ${it.message}" }
                         }
                     },
-                    edit = { newEditor(it, true) }, cook = { launchCooking(it) }, settings = { screen = "settings" },
+                    requestEdit = { editRequest = it },
+                    editCopy = { newEditor(RecipeEditSafety.editableCopy(it)) },
+                    cook = { launchCooking(it) }, settings = { screen = "settings" },
                     importFile = { importDocument.launch(arrayOf("*/*")) },
                     backup = { saveBackup.launch("Crumbkeeper-Cookbook.crumbbook") },
                     share = ::shareRecipe)
                 "editor" -> EditorScreen(context, draft,
                     update = { draft = it; saveDraft() }, warnings = importWarnings, unplaced = unplaced,
                     existing = existing, back = { saveDraft(); screen = "library" },
-                    save = { saveRecipe(false) }, saveCopy = { saveRecipe(true) })
+                    save = { if (existing) confirmSaveChanges = true else saveRecipe(false) },
+                    saveCopy = { saveRecipe(true) })
                 "cook" -> cooking?.let { recipe ->
                     CookingScreen(recipe, snapshot, now,
                         onIngredient = { index -> snapshot?.let { s ->
@@ -257,6 +279,49 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                     toggleTimerSound = { timerSound = it; prefs.edit().putBoolean("timer-sound", it).apply() },
                     back = { screen = "library" })
             }
+        }
+        editRequest?.let { recipe ->
+            AlertDialog(
+                onDismissRequest = { editRequest = null },
+                title = { Text("Edit this saved recipe?") },
+                text = { Text("“${recipe.title}” is already saved. Cooking and sharing never change it. Editing the original requires a second confirmation when you save. Use an editable copy to protect the original.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        editRequest = null
+                        newEditor(recipe, alreadyExists = true)
+                    }) { Text("Edit Original") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = {
+                            editRequest = null
+                            newEditor(RecipeEditSafety.editableCopy(recipe))
+                        }) { Text("Edit a Copy") }
+                        TextButton(onClick = { editRequest = null }) { Text("Cancel") }
+                    }
+                }
+            )
+        }
+        if (confirmSaveChanges) {
+            AlertDialog(
+                onDismissRequest = { confirmSaveChanges = false },
+                title = { Text("Replace saved recipe?") },
+                text = { Text("This will save your edits over “${draft.title}”. The original will change. To preserve it, choose Save as New instead.") },
+                confirmButton = {
+                    TextButton(onClick = { saveRecipe(copy = false, confirmedOriginal = true) }) {
+                        Text("Replace Original")
+                    }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = {
+                            confirmSaveChanges = false
+                            saveRecipe(copy = true)
+                        }) { Text("Save as New") }
+                        TextButton(onClick = { confirmSaveChanges = false }) { Text("Keep Editing") }
+                    }
+                }
+            )
         }
         archivePending?.let { pending ->
             val existingIds = recipes.map { it.id }.toSet()
@@ -314,7 +379,8 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
 
 @Composable
 private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: () -> Unit,
-    importText: (String) -> Unit, resumeDraft: () -> Unit, edit: (Recipe) -> Unit,
+    importText: (String) -> Unit, resumeDraft: () -> Unit,
+    requestEdit: (Recipe) -> Unit, editCopy: (Recipe) -> Unit,
     cook: (Recipe) -> Unit, settings: () -> Unit,
     importFile: () -> Unit, backup: () -> Unit, share: (Recipe) -> Unit) {
     val clipboard = LocalClipboardManager.current
@@ -345,12 +411,31 @@ private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: (
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Text(recipe.title.ifBlank { "Untitled Recipe" }, style = MaterialTheme.typography.titleLarge)
+                        var optionsOpen by remember(recipe.id) { mutableStateOf(false) }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(recipe.title.ifBlank { "Untitled Recipe" },
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.weight(1f))
+                            Box {
+                                TextButton(onClick = { optionsOpen = true }) {
+                                    Text("⋮ More")
+                                }
+                                DropdownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit a Copy") },
+                                        onClick = { optionsOpen = false; editCopy(recipe) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Original…") },
+                                        onClick = { optionsOpen = false; requestEdit(recipe) }
+                                    )
+                                }
+                            }
+                        }
                         Text("${recipe.ingredients.size} ingredients  •  ${recipe.steps.size} steps" +
                             if (recipe.servings.isNotBlank()) "  •  ${recipe.servings}" else "", style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { cook(recipe) }) { Text("Start Cooking") }
-                            OutlinedButton(onClick = { edit(recipe) }) { Text("Edit") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { cook(recipe) }) { Text("Cook") }
                             OutlinedButton(onClick = { share(recipe) }) { Text("Share") }
                         }
                     }
@@ -378,7 +463,7 @@ private fun EditorScreen(context: Context, draft: Recipe, update: (Recipe) -> Un
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = back) { Text("‹ Library") }
             Text("Recipe Builder", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            Button(onClick = save, enabled = draft.title.isNotBlank()) { Text("Save") }
+            if (!existing) Button(onClick = save, enabled = draft.title.isNotBlank()) { Text("Save Recipe") }
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -409,9 +494,14 @@ private fun EditorScreen(context: Context, draft: Recipe, update: (Recipe) -> Un
                 if (originalOpen) Text(draft.originalText)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = save, enabled = draft.title.isNotBlank()) { Text(if (existing) "Save Changes" else "Save Recipe") }
+                Button(onClick = save, enabled = draft.title.isNotBlank()) {
+                    Text(if (existing) "Review Changes…" else "Save Recipe")
+                }
                 if (existing) OutlinedButton(onClick = saveCopy) { Text("Save as New") }
             }
+            if (existing) Text("Changes stay in a draft until you confirm replacing the saved recipe.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(18.dp))
         }
     }
@@ -621,6 +711,6 @@ private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolea
             }
             Switch(checked = timerSound, onCheckedChange = toggleTimerSound)
         }
-        Text("Crumbkeeper 0.1.2-dev — Offline cookbook backup test", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Crumbkeeper 0.1.3-dev — Cook & Share first", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
