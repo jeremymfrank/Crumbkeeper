@@ -1,6 +1,6 @@
 # Crumbkeeper — Project Specification
 
-**Document version:** 0.1  
+**Document version:** 0.2  
 **Date:** 2026-11-02  
 **Status:** Product scope baseline; not an implementation report  
 **Primary platform:** Android (tablets first, phones supported)
@@ -23,7 +23,7 @@ Crumbkeeper is an **offline-first, distraction-free home cooking application**. 
 
 These requirements reflect the agreed project direction.
 
-- **Dark theme by default.** Optional alternate themes may be added through settings outside Cooking Mode.
+- **Dark theme by default.** Appearance and behavior preferences—including optional themes—are configured in a dedicated **Settings / Configuration** menu outside Cooking Mode. Do not place theme/settings navigation in the cooking workspace.
 - **Tablet-first, phone-compatible.** Use available space in landscape and portrait rather than forcing a phone-sized interface onto a large tablet.
 - **Single-screen Cooking Mode.** Ingredients, directions, step images, personal notes, and all recipe timers are visible or accessible by scrolling within the same uninterrupted workspace. No tabs, subpages, wizard-style steps, or routine navigation away from the recipe while cooking.
 - **Persistent timer visibility.** Active countdowns must remain accessible when the user scrolls the recipe, including on smaller phones. Timers must never require opening a separate screen.
@@ -65,7 +65,15 @@ These requirements reflect the agreed project direction.
 - Show timer completion clearly in place, with system-appropriate audible/notification alerting; do not open an unrelated screen.
 - Keep editing tools, share menus, general settings, and library navigation out of the ordinary cooking flow.
 - A deliberate **Finish Cooking** control ends the session and returns to the library. Avoid accidental activation.
-- Prefer keeping the screen awake in Cooking Mode. **Decision pending:** whether the keep-awake behavior is always on or a default-on toggle. Neither should require leaving the recipe while cooking.
+- **Keep screen awake in Cooking Mode by default, where supported by Android.** Add an enabled-by-default **Keep screen awake while cooking** toggle in the Settings / Configuration menu. Apply it only while Cooking Mode is visible; release the request on exit. Respect device lock, power-management restrictions, and platform behavior; do not imply the app can override them.
+
+### 3.4 Settings / Configuration menu (outside Cooking Mode)
+
+- Provide a dedicated configuration destination reachable from the recipe library/editor, not from routine cooking actions.
+- Default to **dark theme**; allow alternate theme selection without restarting or losing saved work.
+- Provide a **Keep screen awake while cooking** preference, enabled by default, with a concise explanation of battery use and device limits.
+- Reserve space for accessibility preferences (font scaling, contrast), notification/sound controls consistent with Android permissions, and import/export preferences as these are implemented.
+- All selections persist locally and remain available offline. Settings changes should not alter recipe content or active timer deadlines.
 
 ## 4. Timer contract
 
@@ -201,11 +209,11 @@ The exact minimum Android version, dependencies, install method, and version num
 
 ## 11. Open decisions (not requirements yet)
 
-1. Cooking Mode screen-awake policy: fixed-on vs default-on toggle.
-2. Exact Android minimum SDK and supported device/version test matrix.
-3. Final versioned `.crumbrecipe` JSON schema and import limits.
+1. Exact Android minimum SDK and supported device/version test matrix.
+2. Final versioned `.crumbrecipe` JSON schema and import limits.
+3. Detailed recipe-building/editing workflow (to be designed before implementation).
 4. Optional recipe revision history and ingredient scaling release timing.
-5. Branding/icon, supplementary themes, typography, and release distribution.
+5. Branding/icon, additional theme designs, typography, and release distribution.
 6. Project license.
 
 ## 12. Scope-change discipline
