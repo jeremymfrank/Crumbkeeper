@@ -63,7 +63,7 @@ Release packaging requires a tested Android SDK build plus an appropriate signin
 
 ## v0.1.2-dev — Recipe backup, sharing, and text interchange
 
-- **PASS (GitHub CI):** [Run #5](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41533346337), source commit `bd005164`: `testDebugUnitTest` and `assembleDebug` succeeded.
+- **PASS (GitHub CI):** [Run #6](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41533346337), source commit `bd005164`: `testDebugUnitTest` and `assembleDebug` succeeded.
 - APK SHA-256: `5a4cf3bd078092c00206d0a07925bfb1d0da759e401d39e356a8ad0b585b66f9` (9,865,406 bytes).
 - **PASS (JVM):** RecipeParser and RecipeArchive tests including ChatGPT Recipe Text v1, explicit timer round trips, ZIP single recipe photo, cookbook multi-recipe archive, and path traversal rejection.
 - **INCOMPLETE (Android device):** file picker, Quick Share, backup location, imported photos, duplicate handling and real-world restoration have not been verified on the user's tablet.
