@@ -1,6 +1,6 @@
 # Crumbkeeper — Project Specification
 
-**Document version:** 0.3  
+**Document version:** 0.4  
 **Date:** 2026-11-02  
 **Status:** Product scope baseline; not an implementation report  
 **Primary platform:** Android (tablets first, phones supported)
@@ -147,6 +147,8 @@ A complete schema, MIME type, maximum archive sizes, and migration rules are to 
 ### 5.3 Library backup: `.crumbbook`
 
 **Planned:** A separate portable whole-library backup (recipes, images, notes, tags, and compatible metadata). Backups must be independently restorable without a Crumbkeeper account. Distinguish **individual sharing** from **whole-library backup** so one shared recipe cannot accidentally expose the complete collection.
+
+**Implementation direction:** See [Crumbkeeper Recipe Text v1](CHATGPT_IMPORT.md) for the optional human-readable ChatGPT Markdown convention, and [Backup & Sharing](RECIPE_PORTABILITY.md) for `.crumbbook` / `.crumbrecipe` packaging and non-destructive restore. These are implemented in the v0.1.2-dev prototype but still require on-device verification.
 
 ## 6. Nearby sharing and importing
 

@@ -20,6 +20,8 @@ Crumbkeeper turns a tablet or phone into a dedicated kitchen workspace: ingredie
 ## Project documentation
 
 - **[Project Specification](docs/PROJECT_SPEC.md)** — agreed behavior, proposed architecture, data format, timer safety contract, roadmap, acceptance criteria, deferred ideas, and open decisions.
+- **[ChatGPT Import Text Format](docs/CHATGPT_IMPORT.md)** — paste-ready Markdown with optional exact timer directives.
+- **[Backup & Sharing Workflow](docs/RECIPE_PORTABILITY.md)** — local backups, individual recipe sharing and recovery safeguards.
 - **[Hybrid Recipe Builder](docs/RECIPE_BUILDER.md)** — create from scratch, import recipes copied from ChatGPT, offline parsing and preview, step timers, and safe manual editing.
 - **[Branding & Android Icon](branding/README.md)** — approved identity, vector launcher icon, Android adaptive resources, and dark-theme color tokens.
 
