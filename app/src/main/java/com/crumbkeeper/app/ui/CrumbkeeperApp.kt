@@ -99,8 +99,8 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
         cooking = recipe; setSnapshot(s); screen = "cook"
     }
 
-    LaunchedEffect(incomingText) {
-        if (!incomingText.isNullOrBlank()) {
+    LaunchedEffect(incomingText, screen) {
+        if (!incomingText.isNullOrBlank() && screen != "cook") {
             val parsed = RecipeParser.parse(incomingText)
             newEditor(parsed.recipe, warnings = parsed.warnings, leftover = parsed.unplaced)
             onConsumed()

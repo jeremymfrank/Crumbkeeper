@@ -38,6 +38,12 @@ object RecipeParser {
                 stepsSection.matches(clean) -> { section = "steps"; return@forEach }
                 notesSection.matches(clean) -> { section = "notes"; return@forEach }
             }
+            if (clean.startsWith("Note:", ignoreCase = true) || clean.startsWith("Notes:", ignoreCase = true)) {
+                val inlineNote = clean.substringAfter(':').trim()
+                notes += if (notes.isEmpty()) inlineNote else "\n$inlineNote"
+                section = "notes"
+                return@forEach
+            }
             val yieldMatch = servingsRegex.matchEntire(clean)
             if (yieldMatch != null) { servings = yieldMatch.groupValues[1]; return@forEach }
             if (title.isBlank() && section == "intro" && !metaHead.containsMatchIn(clean)) {
