@@ -1,6 +1,6 @@
 # Crumbkeeper — Project Specification
 
-**Document version:** 0.2  
+**Document version:** 0.3  
 **Date:** 2026-11-02  
 **Status:** Product scope baseline; not an implementation report  
 **Primary platform:** Android (tablets first, phones supported)
@@ -47,6 +47,8 @@ These requirements reflect the agreed project direction.
 - Keep management controls out of Cooking Mode.
 
 ### 3.2 Recipe Editor (outside Cooking Mode)
+
+**Chosen workflow: Hybrid Recipe Editor.** A user can create manually, paste a complete plain-text/Markdown recipe (including a ChatGPT recipe), or import `.crumbrecipe`. All paths use one structured recipe model. The offline paste parser proposes ingredients, steps, temperatures, notes and timer presets, while preserving the complete pasted source and flagging uncertain or unplaced content. The user reviews and edits results before saving; suggestions are never silently invented, discarded or automatically started. See **[Hybrid Recipe Builder Design](RECIPE_BUILDER.md)** for detailed workflow, parsing rules and acceptance tests.
 
 - Create and edit recipe title, description, servings/yield, ingredients with quantities and units, ordered steps, timer presets attached to steps, notes, and photos.
 - Autosave drafts locally so a brief app interruption does not destroy edits.
@@ -201,7 +203,7 @@ The exact minimum Android version, dependencies, install method, and version num
 
 - Cloud accounts, cloud syncing, public social feeds, ads, subscriptions.
 - Custom wireless transfer protocol and dedicated sharing server.
-- Online recipe discovery, web scraping, AI generation.
+- Online recipe discovery, web scraping, AI generation or cloud-dependent parsing. **Local import of recipes copied from ChatGPT is in scope.**
 - Meal planning, shopping cart integrations, pantry inventories.
 - Voice navigation / hands-free commands.
 - Simultaneous multi-recipe workspaces, unless a later user test justifies the complexity.
@@ -211,7 +213,7 @@ The exact minimum Android version, dependencies, install method, and version num
 
 1. Exact Android minimum SDK and supported device/version test matrix.
 2. Final versioned `.crumbrecipe` JSON schema and import limits.
-3. Detailed recipe-building/editing workflow (to be designed before implementation).
+3. Final technical parser implementation and source-format edge cases for the chosen [hybrid recipe editor](RECIPE_BUILDER.md).
 4. Optional recipe revision history and ingredient scaling release timing.
 5. Branding/icon, additional theme designs, typography, and release distribution.
 6. Project license.
