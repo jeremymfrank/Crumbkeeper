@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="crumb_background">#100C15</color>
+    <color name="crumb_surface">#1D1624</color>
+    <color name="crumb_surface_raised">#292031</color>
+    <color name="crumb_text">#F1E6D4</color>
+    <color name="crumb_text_muted">#BDAFC0</color>
+    <color name="crumb_accent_violet">#B34BE4</color>
+    <color name="crumb_accent_copper">#B88A53</color>
+    <color name="crumb_gold">#EBD1A7</color>
+    <color name="crumb_success">#83C5A5</color>
+    <color name="crumb_warning">#E5B875</color>
+    <color name="crumb_danger">#EE8F95</color>
+</resources>
