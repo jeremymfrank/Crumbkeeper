@@ -1,6 +1,6 @@
 # Crumbkeeper Android v0.1.0-dev — First APK Source
 
-**Build status: SOURCE CREATED / APK NOT BUILT OR TESTED.** The code was prepared in an environment without an Android SDK, Android Gradle Plugin artifacts, or network access to Gradle/Google repositories. No binary can be responsibly labeled as a working APK yet.
+**Build status: DEBUG APK BUILT (PASS) on GitHub Actions, 2026-11-02. Android device/emulator testing is still INCOMPLETE.** The initial local environment lacked the Android SDK, but GitHub Actions assembled `app-debug.apk` successfully in [run #2](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41523550547).
 
 ## Included in this first build
 
@@ -16,12 +16,20 @@
 
 ## Explicitly incomplete
 
-- **No compiled APK, emulator test, or on-device validation yet.** First test must run in Android Studio or a correctly configured CI runner.
+- **APK compilation passed GitHub CI.** Emulator and real-device testing remain incomplete; do not treat a successful build as a validated release.
 - **No locked-screen alarm/notification scheduling yet.** Countdown deadlines persist, but v0.1 only displays completion while the application is open. Do not rely on this version for critical food-safety timing with the screen locked.
 - No `.crumbrecipe` ZIP sharing/import, cookbook backup/restore, step-level photos, or ingredient quantity scaling yet.
 - No guaranteed correct behavior across OS process death or device reboot until device testing is completed.
 - No release signing or Google Play deployment.
 - Android launcher icon resources are source designs; actual launcher mask rendering requires an Android test build.
+
+## First successful CI build
+
+- CI workflow: `.github/workflows/android-debug.yml`
+- First PASS: [Android debug APK, run #2](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41523550547)
+- Artifact: `Crumbkeeper-v0.1.0-debug` → contains `app-debug.apk`
+- Built APK size: **9,832,106 bytes**; SHA-256: `d7c01187b0eb648c39910439a565a06ff857a617ba0516552b007510239da79b`
+- Result: **COMPILE PASS / DEVICE TEST INCOMPLETE**.
 
 ## Building the first debug APK
 
@@ -40,6 +48,6 @@ The platform-independent `Recipe.kt` and `RecipeParser.kt` compiled using Kotlin
 
 These tests **do not** validate the Android application, UI compilation, SQLite, or timer behavior.
 
-## Why it does not include a release APK
+## Why it is not a production release APK
 
 Release packaging requires a tested Android SDK build plus an appropriate signing key. The first milestone is a debug APK tested on real hardware before generating a signed release.

@@ -33,6 +33,8 @@ Proposed: native Kotlin + Jetpack Compose, Room/SQLite for structured local data
 
 ## Android prototype source
 
-The first native Android prototype source is now in `app/` (**v0.1.0-dev**, build and device tests **not yet run**). It includes a dark-theme local cookbook, hybrid paste-and-edit flow, in-place Cooking Mode, and protected multiple timers. Read [First Android Build](docs/ANDROID_FIRST_BUILD.md) for prerequisites, build instructions, test status, and known limitations.
+The first native Android prototype source is now in `app/` (**v0.1.0-dev**, GitHub debug APK **build PASS**, on-device testing **not yet run**). It includes a dark-theme local cookbook, hybrid paste-and-edit flow, in-place Cooking Mode, and protected multiple timers. Read [First Android Build](docs/ANDROID_FIRST_BUILD.md) for prerequisites, build instructions, test status, and known limitations.
 
 **Do not depend on this prototype for locked-screen alarms:** Android notification/alarm integration is not implemented yet.
+
+First successful CI build: [Run #2](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41523550547) — download the `Crumbkeeper-v0.1.0-debug` artifact from the workflow. This is a debug testing build, **not a production release**.
