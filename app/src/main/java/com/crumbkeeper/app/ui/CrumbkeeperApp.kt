@@ -74,6 +74,15 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     var existing by remember { mutableStateOf(false) }
     var editRequest by remember { mutableStateOf<Recipe?>(null) }
     var confirmSaveChanges by remember { mutableStateOf(false) }
+    var trashRequest by remember { mutableStateOf<Recipe?>(null) }
+    var permanentDeleteRequest by remember { mutableStateOf<Recipe?>(null) }
+    val deletedRecipes = remember { mutableStateListOf<Recipe>().apply { addAll(store.trashed()) } }
+    fun reloadRecipes() {
+        recipes.clear()
+        recipes.addAll(store.all())
+        deletedRecipes.clear()
+        deletedRecipes.addAll(store.trashed())
+    }
     var importWarnings by remember { mutableStateOf(emptyList<String>()) }
     var unplaced by remember { mutableStateOf(emptyList<String>()) }
     var confirmFinish by remember { mutableStateOf(false) }
@@ -262,6 +271,7 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     BackHandler(enabled = screen == "cook") { confirmFinish = true }
     BackHandler(enabled = screen == "editor") { saveDraft(); screen = "library" }
     BackHandler(enabled = screen == "settings") { screen = "library" }
+    BackHandler(enabled = screen == "trash") { screen = "library" }
 
     MaterialTheme(colorScheme = colors) {
         androidx.compose.material3.Surface(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
@@ -283,10 +293,24 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                     },
                     requestEdit = { editRequest = it },
                     editCopy = { newEditor(RecipeEditSafety.editableCopy(it)) },
+                    requestTrash = { trashRequest = it },
                     cook = { launchCooking(it) }, settings = { screen = "settings" },
                     importFile = { importDocument.launch(arrayOf("*/*")) },
                     backup = { saveBackup.launch("Crumbkeeper-Cookbook.crumbbook") },
                     share = ::shareRecipe)
+                "trash" -> TrashScreen(
+                    deletedRecipes,
+                    restore = { recipe ->
+                        runCatching {
+                            check(store.restoreFromTrash(recipe.id)) { "Recipe was not in Trash." }
+                            reloadRecipes()
+                            "Restored “${recipe.title}” to the library."
+                        }.onSuccess { transferMessage = it }
+                            .onFailure { transferMessage = "Restore failed: ${it.message}" }
+                    },
+                    requestPermanentDelete = { permanentDeleteRequest = it },
+                    back = { screen = "library" }
+                )
                 "editor" -> EditorScreen(context, draft,
                     update = { draft = it; saveDraft() }, warnings = importWarnings, unplaced = unplaced,
                     existing = existing, back = { saveDraft(); screen = "library" },
@@ -303,11 +327,57 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                         onTimer = ::updateTimer, finish = { confirmFinish = true })
                 }
                 "settings" -> SettingsScreen(dark, keepAwake, timerSound,
+                    trashCount = deletedRecipes.size,
+                    showTrash = { screen = "trash" },
                     toggleDark = { dark = it; prefs.edit().putBoolean("dark", it).apply() },
                     toggleAwake = { keepAwake = it; prefs.edit().putBoolean("keep-awake", it).apply() },
                     toggleTimerSound = { timerSound = it; prefs.edit().putBoolean("timer-sound", it).apply() },
                     back = { screen = "library" })
             }
+        }
+        trashRequest?.let { recipe ->
+            AlertDialog(
+                onDismissRequest = { trashRequest = null },
+                title = { Text("Move recipe to Trash?") },
+                text = { Text("Move “${recipe.title}” out of your cookbook? It will no longer appear in cooking, sharing or cookbook backups. You can restore it from Settings → Trash.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        runCatching {
+                            check(store.moveToTrash(recipe.id)) { "Recipe was not found in the library." }
+                            reloadRecipes()
+                            "Moved “${recipe.title}” to Trash. Restore it in Settings → Trash."
+                        }.onSuccess { transferMessage = it }
+                            .onFailure { transferMessage = "Could not move recipe: ${it.message}" }
+                        trashRequest = null
+                    }) { Text("Move to Trash") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { trashRequest = null }) { Text("Keep Recipe") }
+                }
+            )
+        }
+        permanentDeleteRequest?.let { recipe ->
+            AlertDialog(
+                onDismissRequest = { permanentDeleteRequest = null },
+                title = { Text("Delete permanently?") },
+                text = { Text("“${recipe.title}” will be permanently removed. This cannot be undone unless you previously saved a backup. This action is only available from Trash.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        runCatching {
+                            check(store.deletePermanently(recipe.id, confirmed = true)) {
+                                "Recipe is not in Trash."
+                            }
+                            reloadRecipes()
+                            "Permanently deleted “${recipe.title}”."
+                        }.onSuccess { transferMessage = it }
+                            .onFailure { transferMessage = "Delete failed: ${it.message}" }
+                        permanentDeleteRequest = null
+                    }) { Text("Delete Permanently") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { permanentDeleteRequest = null }) { Text("Cancel") }
+                }
+            )
         }
         editRequest?.let { recipe ->
             AlertDialog(
@@ -362,7 +432,7 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
             confirmButton = { }
         )
         archivePending?.let { pending ->
-            val existingIds = recipes.map { it.id }.toSet()
+            val existingIds = store.existingIds()
             val duplicates = pending.duplicateCount(existingIds)
             AlertDialog(
                 onDismissRequest = { archivePending = null },
@@ -419,6 +489,7 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
 private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: () -> Unit,
     importText: (String) -> Unit, resumeDraft: () -> Unit,
     requestEdit: (Recipe) -> Unit, editCopy: (Recipe) -> Unit,
+    requestTrash: (Recipe) -> Unit,
     cook: (Recipe) -> Unit, settings: () -> Unit,
     importFile: () -> Unit, backup: () -> Unit, share: (Recipe) -> Unit) {
     val clipboard = LocalClipboardManager.current
@@ -466,6 +537,11 @@ private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: (
                                     DropdownMenuItem(
                                         text = { Text("Edit Original…") },
                                         onClick = { optionsOpen = false; requestEdit(recipe) }
+                                    )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Move to Trash…") },
+                                        onClick = { optionsOpen = false; requestTrash(recipe) }
                                     )
                                 }
                             }
@@ -728,8 +804,47 @@ private fun TimerControls(timer: TimerRun, label: String, now: Long,
     }
 }
 
+
+@Composable
+private fun TrashScreen(
+    recipes: List<Recipe>, restore: (Recipe) -> Unit,
+    requestPermanentDelete: (Recipe) -> Unit, back: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = back) { Text("‹ Library") }
+            Text("Trash", style = MaterialTheme.typography.headlineMedium)
+        }
+        Text("Recipes here are hidden from cooking, sharing and regular cookbook backups. You can restore them at any time.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (recipes.isEmpty()) {
+            Text("Trash is empty.", style = MaterialTheme.typography.titleMedium)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(recipes, key = { it.id }) { recipe ->
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(recipe.title, style = MaterialTheme.typography.titleMedium)
+                            Text("${recipe.ingredients.size} ingredients • ${recipe.steps.size} steps",
+                                style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = { restore(recipe) }) { Text("Restore") }
+                                TextButton(onClick = { requestPermanentDelete(recipe) }) {
+                                    Text("Delete Forever")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolean,
+    trashCount: Int, showTrash: () -> Unit,
     toggleDark: (Boolean) -> Unit, toggleAwake: (Boolean) -> Unit,
     toggleTimerSound: (Boolean) -> Unit, back: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
@@ -751,6 +866,11 @@ private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolea
             }
             Switch(checked = timerSound, onCheckedChange = toggleTimerSound)
         }
-        Text("Crumbkeeper 0.1.4-dev — Offline PDF importing", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedButton(onClick = showTrash) {
+            Text("Trash ($trashCount)")
+        }
+        Text("Recipes in Trash can be restored. Permanent deletion requires separate confirmation.",
+            style = MaterialTheme.typography.bodySmall)
+        Text("Crumbkeeper 0.1.5-testers — Shared test build", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

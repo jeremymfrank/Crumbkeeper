@@ -134,7 +134,7 @@ object RecipeArchive {
 
     /** Import missing IDs by default; 'copies' gives every import a new ID. Never overwrite silently. */
     fun restore(context: Context, store: RecipeStore, pending: Prepared, copies: Boolean = false): Result {
-        val existingIds = store.all().map { it.id }.toSet()
+        val existingIds = store.existingIds()
         val selected = pending.recipes.filter { copies || it.id !in existingIds }
         val imageDir = File(context.filesDir, "recipe-images").apply { mkdirs() }
         val newImages = mutableListOf<File>()

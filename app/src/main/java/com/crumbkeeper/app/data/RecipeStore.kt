@@ -1,23 +1,45 @@
 package com.crumbkeeper.app.data
 
 import android.content.Context
+import android.content.ContentValues
+import java.io.File
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import org.json.JSONObject
 
 /** Minimal local SQLite store for v0.1. Room migration planned after first device build. */
-class RecipeStore(context: Context) : SQLiteOpenHelper(context, "crumbkeeper.db", null, 1) {
+class RecipeStore(context: Context) : SQLiteOpenHelper(context, "crumbkeeper.db", null, 2) {
+    private val appContext = context.applicationContext
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE recipes (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL)")
+        db.execSQL("CREATE TABLE recipes (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL, deleted_at INTEGER NOT NULL DEFAULT 0)")
     }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Future schema upgrades must be additive; never delete users' recipes.
+        // Additive migration only: previously saved recipes remain active.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE recipes ADD COLUMN deleted_at INTEGER NOT NULL DEFAULT 0")
+        }
     }
-    fun all(): List<Recipe> {
+    fun existingIds(): Set<String> {
+        val ids = mutableSetOf<String>()
+        readableDatabase.rawQuery("SELECT id FROM recipes", null).use { cursor ->
+            while (cursor.moveToNext()) ids += cursor.getString(0)
+        }
+        return ids
+    }
+
+    fun all(): List<Recipe> = listRecipes(trashed = false)
+    fun trashed(): List<Recipe> = listRecipes(trashed = true)
+
+    private fun listRecipes(trashed: Boolean): List<Recipe> {
         val result = mutableListOf<Recipe>()
-        readableDatabase.rawQuery("SELECT data FROM recipes ORDER BY updated_at DESC", null).use { cursor ->
-            while (cursor.moveToNext()) runCatching { result += decodeRecipe(JSONObject(cursor.getString(0))) }
+        val selection = if (trashed) "deleted_at <> 0" else "deleted_at = 0"
+        readableDatabase.rawQuery(
+            "SELECT data FROM recipes WHERE $selection ORDER BY updated_at DESC", null
+        ).use { cursor ->
+            while (cursor.moveToNext()) runCatching {
+                result += decodeRecipe(JSONObject(cursor.getString(0)))
+            }
         }
         return result
     }
@@ -41,8 +63,43 @@ class RecipeStore(context: Context) : SQLiteOpenHelper(context, "crumbkeeper.db"
             db.endTransaction()
         }
     }
-    fun remove(id: String) {
-        writableDatabase.delete("recipes", "id=?", arrayOf(id))
+    /** Moves only an active recipe into recoverable trash. Does not delete images. */
+    fun moveToTrash(id: String): Boolean {
+        val values = ContentValues().apply { put("deleted_at", System.currentTimeMillis().coerceAtLeast(1)) }
+        return writableDatabase.update(
+            "recipes", values, "id=? AND deleted_at=0", arrayOf(id)
+        ) == 1
+    }
+
+    /** Restores the same ID, original notes, photos and timer presets. */
+    fun restoreFromTrash(id: String): Boolean {
+        val values = ContentValues().apply { put("deleted_at", 0L) }
+        return writableDatabase.update(
+            "recipes", values, "id=? AND deleted_at<>0", arrayOf(id)
+        ) == 1
+    }
+
+    /**
+     * A separate, confirmed command, only for recipes ALREADY in Trash.
+     * Photos shared by other recipes are retained; only orphaned local media is cleaned.
+     */
+    fun deletePermanently(id: String, confirmed: Boolean): Boolean {
+        RecipeTrashPolicy.requireConfirmedPermanentDelete(confirmed)
+        val old = trashed().firstOrNull { it.id == id } ?: return false
+        val deleted = writableDatabase.delete(
+            "recipes", "id=? AND deleted_at<>0", arrayOf(id)
+        ) == 1
+        if (deleted) {
+            val photo = old.coverImage?.let(::File)
+            if (photo != null && photo.isFile) {
+                val imagesRoot = File(appContext.filesDir, "recipe-images").canonicalFile
+                val safePhoto = photo.canonicalFile
+                // A copied recipe may share the same cover path.
+                val stillUsed = (all() + trashed()).any { it.coverImage == old.coverImage }
+                if (!stillUsed && safePhoto.parentFile == imagesRoot) safePhoto.delete()
+            }
+        }
+        return deleted
     }
 }
 
