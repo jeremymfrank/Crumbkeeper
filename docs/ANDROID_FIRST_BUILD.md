@@ -51,3 +51,11 @@ These tests **do not** validate the Android application, UI compilation, SQLite,
 ## Why it is not a production release APK
 
 Release packaging requires a tested Android SDK build plus an appropriate signing key. The first milestone is a debug APK tested on real hardware before generating a signed release.
+
+## v0.1.1-dev field-test fixes
+
+- **Audible in-app timer completion:** the default Android alarm ringtone sounds while a timer is completed and not dismissed, with alarm-stream tone fallback. Setting is enabled by default and can be turned off in Settings. Android alarm volume and Do Not Disturb may silence it.
+- **Compact ingredients:** consecutive ingredients no longer receive the general 12dp section gap; each uses a 44dp minimum full-row touch target with smaller inline check indicator.
+- **Safe side-by-side install:** debug builds now use `com.crumbkeeper.app.dev` to avoid overwriting the previously installed `com.crumbkeeper.app` debug application, whose signing key may differ. **Recipes from the first test installation will not automatically appear in the new side-by-side app. Do not uninstall the original until recipe export is available.**
+- **Not implemented:** Android background/locked-screen alarm notifications, exact alarm scheduling, device-reboot delivery. The new audible alert is foreground-only and requires device testing.
+- Validation status: awaiting a fresh GitHub Actions compile and real-device sound confirmation.

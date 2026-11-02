@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,6 +51,8 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     val prefs = remember { context.getSharedPreferences("crumb-settings", Context.MODE_PRIVATE) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var keepAwake by remember { mutableStateOf(prefs.getBoolean("keep-awake", true)) }
+    var timerSound by remember { mutableStateOf(prefs.getBoolean("timer-sound", true)) }
+    val alertPlayer = remember(context) { TimerAlertPlayer(context) }
     val colors = if (dark) darkColorScheme(primary = Violet, secondary = Copper, background = Ink,
         surface = Surface, surfaceVariant = Raised, onBackground = Cream, onSurface = Cream,
         onPrimary = Color.White) else lightColorScheme(primary = Color(0xFF693C90), secondary = Color(0xFF80552B))
@@ -115,6 +121,24 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
             if (normalized != s.timers) setSnapshot(s.copy(timers = normalized))
         }
     }
+    // A completed timer remains audible until its own Dismiss/Restart action is used.
+    // This is a foreground cooking-mode alert; locked-screen background alarms are not yet implemented.
+    val hasFinishedTimer = screen == "cook" && snapshot?.timers?.values?.any { it.state == "done" } == true
+    LaunchedEffect(hasFinishedTimer, timerSound) {
+        try {
+            if (hasFinishedTimer && timerSound) {
+                while (true) {
+                    alertPlayer.pulse()
+                    delay(1200L)
+                }
+            }
+        } finally {
+            alertPlayer.stop()
+        }
+    }
+    DisposableEffect(alertPlayer) {
+        onDispose { alertPlayer.release() }
+    }
     DisposableEffect(screen, keepAwake) {
         if (screen == "cook" && keepAwake) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -153,9 +177,10 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                         } },
                         onTimer = ::updateTimer, finish = { confirmFinish = true })
                 }
-                "settings" -> SettingsScreen(dark, keepAwake,
+                "settings" -> SettingsScreen(dark, keepAwake, timerSound,
                     toggleDark = { dark = it; prefs.edit().putBoolean("dark", it).apply() },
                     toggleAwake = { keepAwake = it; prefs.edit().putBoolean("keep-awake", it).apply() },
+                    toggleTimerSound = { timerSound = it; prefs.edit().putBoolean("timer-sound", it).apply() },
                     back = { screen = "library" })
             }
         }
@@ -364,11 +389,38 @@ private fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (recipe.coverImage != null) item { CoverImage(recipe.coverImage, Modifier.fillMaxWidth().height(170.dp)) }
             item { Text("INGREDIENTS", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold) }
-            items(recipe.ingredients.size) { index ->
-                val text = recipe.ingredients[index]
-                if (text.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Checkbox(checked = snapshot?.checkedIngredients?.contains(index) == true, onCheckedChange = { onIngredient(index) })
-                    Text(text, style = MaterialTheme.typography.bodyLarge)
+            item {
+                // One list item for the entire ingredient group avoids the 12dp LazyColumn
+                // spacing and extra Material checkbox padding between every ingredient.
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    recipe.ingredients.forEachIndexed { index, ingredient ->
+                        if (ingredient.isNotBlank()) {
+                            val checked = snapshot?.checkedIngredients?.contains(index) == true
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .heightIn(min = 44.dp)
+                                    .clickable(role = Role.Checkbox) { onIngredient(index) }
+                                    .semantics { stateDescription = if (checked) "Checked" else "Not checked" }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(20.dp)
+                                        .background(if (checked) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            RoundedCornerShape(4.dp))
+                                        .border(1.5.dp, if (checked) MaterialTheme.colorScheme.primary else
+                                            MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(4.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (checked) Text("✓", color = Color.White,
+                                        style = MaterialTheme.typography.labelMedium)
+                                }
+                                Text(ingredient, style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
                 }
             }
             item { Text("INSTRUCTIONS", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold) }
@@ -425,8 +477,9 @@ private fun TimerControls(timer: TimerRun, label: String, now: Long,
 }
 
 @Composable
-private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, toggleDark: (Boolean) -> Unit,
-    toggleAwake: (Boolean) -> Unit, back: () -> Unit) {
+private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolean,
+    toggleDark: (Boolean) -> Unit, toggleAwake: (Boolean) -> Unit,
+    toggleTimerSound: (Boolean) -> Unit, back: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
         TextButton(onClick = back) { Text("‹ Library") }
         Text("Settings", style = MaterialTheme.typography.headlineMedium)
@@ -438,6 +491,14 @@ private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, toggleDark: (Boole
             Column(Modifier.weight(1f)) { Text("Keep screen awake"); Text("When Cooking Mode is open; Android device restrictions still apply", style = MaterialTheme.typography.bodySmall) }
             Switch(checked = keepAwake, onCheckedChange = toggleAwake)
         }
-        Text("Crumbkeeper 0.1.0-dev — Offline foundation", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Audible timer alarm")
+                Text("On by default. Uses Android's alarm audio volume; silent/DND settings may affect it.",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = timerSound, onCheckedChange = toggleTimerSound)
+        }
+        Text("Crumbkeeper 0.1.1-dev — Offline foundation", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
