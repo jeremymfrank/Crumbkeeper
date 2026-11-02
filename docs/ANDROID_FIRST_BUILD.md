@@ -60,3 +60,14 @@ Release packaging requires a tested Android SDK build plus an appropriate signin
 - **Not implemented:** Android background/locked-screen alarm notifications, exact alarm scheduling, device-reboot delivery. The new audible alert is foreground-only and requires device testing.
 - Validation status: **Android debug APK compilation PASS** — [GitHub Actions run](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41531267693), commit `8f433274`. APK SHA-256 `eda01af4b9ab7cf07ccf5aa2f9acc6960be2cf576f17321eddc736a93579f26a`. **Audible alert and new compact UI have not yet been confirmed on a real device.**
 - Previous v0.1.0 user feedback: first recipe saves and simultaneous timers run as expected; timers were silent and ingredients too widely spaced. These findings motivated this update.
+
+## v0.1.2-dev — Recipe backup, sharing, and text interchange
+
+- **PASS (GitHub CI):** [Run #5](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41533346337), source commit `bd005164`: `testDebugUnitTest` and `assembleDebug` succeeded.
+- APK SHA-256: `5a4cf3bd078092c00206d0a07925bfb1d0da759e401d39e356a8ad0b585b66f9` (9,865,406 bytes).
+- **PASS (JVM):** RecipeParser and RecipeArchive tests including ChatGPT Recipe Text v1, explicit timer round trips, ZIP single recipe photo, cookbook multi-recipe archive, and path traversal rejection.
+- **INCOMPLETE (Android device):** file picker, Quick Share, backup location, imported photos, duplicate handling and real-world restoration have not been verified on the user's tablet.
+- **New tools:** Back Up Cookbook (`.crumbbook`), recipe-card Share (`.crumbrecipe`), Import File (both archives or text documents), and `CRUMBKEEPER RECIPE v1` human-readable Markdown.
+- **Installation:** app ID `com.crumbkeeper.app.dev2` to install alongside prior differently signed debug APKs. No automatic cross-app migration. **Do not uninstall the original apps.**
+- **Optional legacy recovery:** [Read-only USB/ADB exporter](LEGACY_RECOVERY.md), locally smoke-tested against a synthetic SQLite recipe and photo, not yet tested against the physical tablet.
+- **Still incomplete:** stable signing key for in-place updates and background/locked-screen timer notifications.
