@@ -26,6 +26,21 @@ class RecipeStore(context: Context) : SQLiteOpenHelper(context, "crumbkeeper.db"
         writableDatabase.execSQL("INSERT OR REPLACE INTO recipes(id,title,data,updated_at) VALUES(?,?,?,?)",
             arrayOf(current.id, current.title, encodeRecipe(current).toString(), current.updatedAt))
     }
+    /** One transaction: if importing any recipe fails, none of them are committed. */
+    fun saveBatch(batch: List<Recipe>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            batch.forEach { recipe ->
+                val current = recipe.copy(updatedAt = System.currentTimeMillis())
+                db.execSQL("INSERT OR REPLACE INTO recipes(id,title,data,updated_at) VALUES(?,?,?,?)",
+                    arrayOf(current.id, current.title, encodeRecipe(current).toString(), current.updatedAt))
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
     fun remove(id: String) {
         writableDatabase.delete("recipes", "id=?", arrayOf(id))
     }

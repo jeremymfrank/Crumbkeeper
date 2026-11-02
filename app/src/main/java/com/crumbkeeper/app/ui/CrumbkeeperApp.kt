@@ -2,6 +2,11 @@ package com.crumbkeeper.app.ui
 
 import android.app.Activity
 import android.content.Context
+import android.content.ClipData
+import android.content.Intent
+import android.net.Uri
+import java.io.BufferedInputStream
+import androidx.core.content.FileProvider
 import android.graphics.BitmapFactory
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
@@ -70,6 +75,63 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     var unplaced by remember { mutableStateOf(emptyList<String>()) }
     var confirmFinish by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var archivePending by remember { mutableStateOf<RecipeArchive.Prepared?>(null) }
+    var transferMessage by remember { mutableStateOf<String?>(null) }
+
+    val saveBackup = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(RecipeArchive.MIME_TYPE)
+    ) { uri ->
+        if (uri != null) runCatching {
+            val all = store.all()
+            require(all.isNotEmpty()) { "No saved recipes to back up." }
+            context.contentResolver.openOutputStream(uri)?.use { RecipeArchive.writeBook(all, it) }
+                ?: error("Could not open destination for writing.")
+            "Saved ${all.size} recipes to your chosen backup file."
+        }.onSuccess { transferMessage = it }
+         .onFailure { transferMessage = "Backup failed: ${it.message}" }
+    }
+
+    val importDocument = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) runCatching {
+            val input = context.contentResolver.openInputStream(uri) ?: error("Could not read file.")
+            val buffered = BufferedInputStream(input)
+            buffered.mark(4)
+            val signature = ByteArray(4)
+            val count = buffered.read(signature)
+            buffered.reset()
+            if (count >= 2 && signature[0] == 0x50.toByte() &&
+                signature[1] == 0x4B.toByte()) {
+                buffered.use { archivePending = RecipeArchive.prepare(it) }
+            } else {
+                val bytes = buffered.use { it.readNBytes(1_048_577) }
+                require(bytes.size <= 1_048_576) { "Recipe text file is too large." }
+                val parsed = RecipeParser.parse(String(bytes, Charsets.UTF_8))
+                draft = parsed.recipe
+                existing = false
+                importWarnings = parsed.warnings
+                unplaced = parsed.unplaced
+                screen = "editor"
+            }
+        }.onFailure { transferMessage = "Import failed: ${it.message}" }
+    }
+    fun shareRecipe(recipe: Recipe) {
+        runCatching {
+            val directory = File(context.cacheDir, "exports").apply { mkdirs() }
+            val destination = File(directory, "Crumbkeeper-${recipe.id}.crumbrecipe")
+            destination.outputStream().use { RecipeArchive.writeRecipe(recipe, it) }
+            val uri = FileProvider.getUriForFile(context,
+                "${context.packageName}.fileprovider", destination)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = RecipeArchive.MIME_TYPE
+                putExtra(Intent.EXTRA_STREAM, uri)
+                clipData = ClipData.newRawUri("Crumbkeeper Recipe", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            activity.startActivity(Intent.createChooser(send, "Share Crumbkeeper recipe"))
+        }.onFailure { transferMessage = "Share failed: ${it.message}" }
+    }
 
     fun newEditor(recipe: Recipe, alreadyExists: Boolean = false, warnings: List<String> = emptyList(), leftover: List<String> = emptyList()) {
         draft = recipe; existing = alreadyExists; importWarnings = warnings; unplaced = leftover; screen = "editor"
@@ -162,7 +224,10 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                             runCatching { newEditor(decodeRecipe(org.json.JSONObject(json))) }
                         }
                     },
-                    edit = { newEditor(it, true) }, cook = { launchCooking(it) }, settings = { screen = "settings" })
+                    edit = { newEditor(it, true) }, cook = { launchCooking(it) }, settings = { screen = "settings" },
+                    importFile = { importDocument.launch(arrayOf("*/*")) },
+                    backup = { saveBackup.launch("Crumbkeeper-Cookbook.crumbbook") },
+                    share = ::shareRecipe)
                 "editor" -> EditorScreen(context, draft,
                     update = { draft = it; saveDraft() }, warnings = importWarnings, unplaced = unplaced,
                     existing = existing, back = { saveDraft(); screen = "library" },
@@ -184,6 +249,48 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                     back = { screen = "library" })
             }
         }
+        archivePending?.let { pending ->
+            val existingIds = recipes.map { it.id }.toSet()
+            val duplicates = pending.duplicateCount(existingIds)
+            AlertDialog(
+                onDismissRequest = { archivePending = null },
+                title = { Text(if (pending.isBook) "Restore cookbook?" else "Import recipe?") },
+                text = { Text("Contains ${pending.recipes.size} recipes. ${duplicates} already exist on this device. Existing recipes will not be overwritten.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        runCatching {
+                            val result = RecipeArchive.restore(context, store, pending)
+                            recipes.clear()
+                            recipes.addAll(store.all())
+                            "Imported ${result.imported} recipes; skipped ${result.skipped} existing."
+                        }.onSuccess { transferMessage = it }
+                         .onFailure { transferMessage = "Restore failed: ${it.message}" }
+                        archivePending = null
+                    }) { Text("Import Missing") }
+                },
+                dismissButton = {
+                    Row {
+                        if (duplicates > 0) TextButton(onClick = {
+                            runCatching {
+                                val result = RecipeArchive.restore(context, store, pending, copies = true)
+                                recipes.clear()
+                                recipes.addAll(store.all())
+                                "Imported ${result.imported} as independent copies."
+                            }.onSuccess { transferMessage = it }
+                             .onFailure { transferMessage = "Restore failed: ${it.message}" }
+                            archivePending = null
+                        }) { Text("Keep Both") }
+                        TextButton(onClick = { archivePending = null }) { Text("Cancel") }
+                    }
+                }
+            )
+        }
+        transferMessage?.let { message ->
+            AlertDialog(onDismissRequest = { transferMessage = null },
+                title = { Text("Crumbkeeper") },
+                text = { Text(message) },
+                confirmButton = { TextButton(onClick = { transferMessage = null }) { Text("OK") } })
+        }
         if (confirmFinish) AlertDialog(
             onDismissRequest = { confirmFinish = false },
             title = { Text("Finish cooking?") },
@@ -199,7 +306,8 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
 @Composable
 private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: () -> Unit,
     importText: (String) -> Unit, resumeDraft: () -> Unit, edit: (Recipe) -> Unit,
-    cook: (Recipe) -> Unit, settings: () -> Unit) {
+    cook: (Recipe) -> Unit, settings: () -> Unit,
+    importFile: () -> Unit, backup: () -> Unit, share: (Recipe) -> Unit) {
     val clipboard = LocalClipboardManager.current
     var query by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -212,6 +320,10 @@ private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: (
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = newRecipe) { Text("+ New Recipe") }
             OutlinedButton(onClick = { clipboard.getText()?.text?.toString()?.let(importText) }) { Text("Paste Recipe") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = importFile) { Text("Import File") }
+            OutlinedButton(onClick = backup, enabled = recipes.isNotEmpty()) { Text("Back Up Cookbook") }
         }
         if (hasDraft) OutlinedButton(onClick = resumeDraft) { Text("Resume unsaved draft") }
         OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
@@ -230,6 +342,7 @@ private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: (
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = { cook(recipe) }) { Text("Start Cooking") }
                             OutlinedButton(onClick = { edit(recipe) }) { Text("Edit") }
+                            OutlinedButton(onClick = { share(recipe) }) { Text("Share") }
                         }
                     }
                 }
@@ -499,6 +612,6 @@ private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolea
             }
             Switch(checked = timerSound, onCheckedChange = toggleTimerSound)
         }
-        Text("Crumbkeeper 0.1.1-dev — Offline foundation", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Crumbkeeper 0.1.2-dev — Offline cookbook backup test", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

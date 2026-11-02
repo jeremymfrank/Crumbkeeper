@@ -26,6 +26,29 @@ class RecipeParserTest {
         assertTrue(result.recipe.steps.flatMap { it.timers }.all { !it.approved })
         assertTrue(result.recipe.originalText.contains("415°F"))
     }
+    @Test fun standardizedChatGptMarkdownImportsExplicitTimer() {
+        val text = """CRUMBKEEPER RECIPE v1
+            |# Baked Bread
+            |Serves: 8
+            |## Ingredients
+            |- 3 cups flour
+            |## Instructions
+            |1. Mix the flour and water.
+            |2. Bake in a hot oven for 30 minutes.
+            |   Timer: Bake | 1800s
+            |## Notes
+            |Cool before slicing.
+        """.trimMargin()
+        val parsed = RecipeParser.parse(text)
+        assertEquals("Baked Bread", parsed.recipe.title)
+        assertEquals(2, parsed.recipe.steps.size)
+        val timers = parsed.recipe.steps.last().timers
+        assertEquals(1, timers.size)
+        assertTrue(timers.single().approved)
+        assertEquals(1800, timers.single().durationSeconds)
+        assertTrue(parsed.recipe.notes.contains("Cool before slicing"))
+    }
+
     @Test fun rangeDoesNotSilentlyCreateTimer() {
         val parsed = RecipeParser.parse("Bread\nIngredients\n- 1 cup flour\nInstructions\nBake 20–25 minutes at 375°F")
         assertEquals(0, parsed.recipe.steps.single().timers.size)

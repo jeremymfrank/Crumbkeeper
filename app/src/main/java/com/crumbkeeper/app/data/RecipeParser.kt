@@ -4,6 +4,7 @@ package com.crumbkeeper.app.data
  * Source text remains on the imported draft so no unmatched lines disappear.
  */
 object RecipeParser {
+    private val explicitTimer = Regex("(?i)^Timer:\\s*(.+?)\\s*\\|\\s*(\\d+)\\s*(s|sec|seconds|min|minutes|h|hours)$")
     private val servingsRegex = Regex("(?i)^(?:makes|yields|serves|servings)\\s*:?\\s*(.+)$")
     private val ingredientSection = Regex("(?i)^(ingredients|for the .+|dough|filling|topping|glaze)\\s*:?$")
     private val stepsSection = Regex("(?i)^(directions|method|instructions|preparation|steps)\\s*:?$")
@@ -22,7 +23,7 @@ object RecipeParser {
                 .replace(Regex("^[-*•]\\s+"), "- ")
                 .replace("**", "").replace("__", "")
                 .trim().trimEnd(':').trim()
-        }.filter { it.isNotBlank() && it !in listOf("---", "***") }
+        }.filter { it.isNotBlank() && it !in listOf("---", "***", "```", "```markdown", "```text") }
         val ingredients = mutableListOf<String>()
         val steps = mutableListOf<RecipeStep>()
         val unplaced = mutableListOf<String>()
@@ -33,6 +34,38 @@ object RecipeParser {
         var section = "intro"
         lines.forEach { line ->
             val clean = line.removePrefix("- ").trim()
+            if (clean.equals("CRUMBKEEPER RECIPE v1", ignoreCase = true)) return@forEach
+            if (clean.startsWith("Timer:", ignoreCase = true) && section == "steps") {
+                val match = explicitTimer.matchEntire(clean)
+                if (match == null || steps.isEmpty()) {
+                    warnings += "Timer line needs review: ${clean}"
+                    unplaced += clean
+                } else {
+                    val amount = match.groupValues[2].toIntOrNull() ?: 0
+                    val unit = match.groupValues[3].lowercase()
+                    val seconds = when (unit) {
+                        "h", "hours" -> amount.toLong() * 3600L
+                        "min", "minutes" -> amount.toLong() * 60L
+                        else -> amount.toLong()
+                    }
+                    if (seconds <= 0 || seconds > 86400L) {
+                        warnings += "Timer duration needs review: ${clean}"
+                        unplaced += clean
+                    } else {
+                        val previous = steps.last()
+                        // Explicit, human-authored timer lines replace unapproved inferred suggestions.
+                        val retained = previous.timers.filter { it.approved }
+                        steps[steps.lastIndex] = previous.copy(timers = retained +
+                            TimerPreset(label = match.groupValues[1].trim(),
+                                durationSeconds = seconds.toInt(), approved = true))
+                    }
+                }
+                return@forEach
+            }
+            if (title.isBlank() && section == "intro" && clean.startsWith("Title:", ignoreCase = true)) {
+                title = clean.substringAfter(':').trim()
+                return@forEach
+            }
             when {
                 ingredientSection.matches(clean) -> { section = "ingredients"; return@forEach }
                 stepsSection.matches(clean) -> { section = "steps"; return@forEach }
