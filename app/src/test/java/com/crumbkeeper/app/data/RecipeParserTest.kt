@@ -49,6 +49,21 @@ class RecipeParserTest {
         assertTrue(parsed.recipe.notes.contains("Cool before slicing"))
     }
 
+    @Test fun exportedTextRoundTripsApprovedTimers() {
+        val original = Recipe(title = "Bread", servings = "1 loaf",
+            ingredients = listOf("3 cups flour"), notes = "Rest before cutting.",
+            steps = listOf(RecipeStep(instruction = "Bake the loaf for 35 minutes.",
+                timers = listOf(TimerPreset(label = "Bake", durationSeconds = 2100, approved = true)))))
+        val text = RecipeTextFormat.toMarkdown(original)
+        val parsed = RecipeParser.parse(text).recipe
+        assertEquals("Bread", parsed.title)
+        assertEquals("1 loaf", parsed.servings)
+        assertEquals(original.ingredients, parsed.ingredients)
+        assertEquals(2100, parsed.steps.single().timers.single().durationSeconds)
+        assertTrue(parsed.steps.single().timers.single().approved)
+        assertTrue(parsed.notes.contains("Rest before cutting."))
+    }
+
     @Test fun rangeDoesNotSilentlyCreateTimer() {
         val parsed = RecipeParser.parse("Bread\nIngredients\n- 1 cup flour\nInstructions\nBake 20–25 minutes at 375°F")
         assertEquals(0, parsed.recipe.steps.single().timers.size)

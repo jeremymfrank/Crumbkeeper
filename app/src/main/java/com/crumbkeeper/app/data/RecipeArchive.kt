@@ -48,7 +48,9 @@ object RecipeArchive {
             }
             add("manifest.json", manifest.toString(2).toByteArray(Charsets.UTF_8))
             recipes.forEachIndexed { index, r ->
-                val picture = r.coverImage?.let(::File)?.takeIf { it.isFile }
+                val picture = r.coverImage?.let(::File)?.also {
+                    require(it.isFile) { "Missing recipe cover photo: ${r.title}" }
+                }
                 val mediaPath = picture?.let { "images/${r.id}.cover" }
                 add(paths[index], encodeRecipe(r.copy(coverImage = mediaPath)).toString(2).toByteArray(Charsets.UTF_8))
                 if (picture != null && mediaPath != null) {

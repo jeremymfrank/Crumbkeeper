@@ -105,8 +105,17 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                 signature[1] == 0x4B.toByte()) {
                 buffered.use { archivePending = RecipeArchive.prepare(it) }
             } else {
-                val bytes = buffered.use { it.readNBytes(1_048_577) }
-                require(bytes.size <= 1_048_576) { "Recipe text file is too large." }
+                val bytes = buffered.use { input ->
+                    val out = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(4096)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        require(out.size() + n <= 1_048_576) { "Recipe text file is too large." }
+                        out.write(buffer, 0, n)
+                    }
+                    out.toByteArray()
+                }
                 val parsed = RecipeParser.parse(String(bytes, Charsets.UTF_8))
                 draft = parsed.recipe
                 existing = false
