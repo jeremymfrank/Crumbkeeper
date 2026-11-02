@@ -40,3 +40,8 @@ The default cookbook workflow is **Cook** and **Share**. Saved recipes should fe
 - [ ] Tablet / phone layout remains usable and timer behavior is unchanged.
 
 Automated Kotlin tests cover duplicate IDs and overwrite authorization; device testing is required to confirm the new interaction flow.
+## First verified APK (2026-11-02)
+
+- **Automated build and JVM unit tests:** PASS, [GitHub Actions run #7](https://github.com/jeremymfrank/Crumbkeeper/actions/runs/41536861724), source commit `88227c30`.
+- **Debug APK:** `Crumbkeeper_v0.1.3-dev.apk`, 9,881,790 bytes; SHA-256 `b58843489c97c9005338d7931b3f28ef735e0716d8b341ea767db1790e2528f7`.
+- **On-device UI / backup restore testing:** INCOMPLETE. Please retain the existing app and an off-device cookbook backup until migration is checked.
