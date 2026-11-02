@@ -17,6 +17,14 @@ Crumbkeeper turns a tablet or phone into a dedicated kitchen workspace: ingredie
 
 **Android prototype available.** The debug test builds run on Android; no production release or stable-signing/update channel yet.
 
+## Android tester APK — v0.1.5
+
+**[Download the public tester preview](https://github.com/jeremymfrank/Crumbkeeper/releases/tag/v0.1.5-testers)** (Android debug APK, not a production release). The public release includes the installable `app-debug.apk`; testers do not need to build the project.
+
+This preview includes protected Cook/Share workflow, local cookbook backup and recipe transfer, a recoverable Trash under **More → Move to Trash** and **Settings → Trash**, and offline PDF OCR. [Tester checklist and limitations](docs/TESTER_RELEASE.md), [Trash recovery details](docs/TRASH_AND_RECOVERY.md), [PDF importer details](docs/PDF_IMPORT.md).
+
+**Important:** Recipe storage is local. Keep a `.crumbbook` backup outside the app. Builds are still using nonpersistent debug signing, so future APKs may require a separate install followed by backup/import. Foreground timer alerts work; background or locked-screen alarms are not implemented.
+
 ## Project documentation
 
 - **[Project Specification](docs/PROJECT_SPEC.md)** — agreed behavior, proposed architecture, data format, timer safety contract, roadmap, acceptance criteria, deferred ideas, and open decisions.
