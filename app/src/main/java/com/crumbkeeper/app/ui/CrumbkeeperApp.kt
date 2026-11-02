@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import java.io.BufferedInputStream
+import kotlinx.coroutines.launch
 import androidx.core.content.FileProvider
 import android.graphics.BitmapFactory
 import android.view.WindowManager
@@ -79,6 +80,8 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var archivePending by remember { mutableStateOf<RecipeArchive.Prepared?>(null) }
     var transferMessage by remember { mutableStateOf<String?>(null) }
+    var extractingPdf by remember { mutableStateOf(false) }
+    val importScope = rememberCoroutineScope()
 
     val saveBackup = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(RecipeArchive.MIME_TYPE)
@@ -96,36 +99,62 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     val importDocument = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) runCatching {
+        if (uri != null && !extractingPdf) runCatching {
             val input = context.contentResolver.openInputStream(uri) ?: error("Could not read file.")
             val buffered = BufferedInputStream(input)
-            buffered.mark(4)
-            val signature = ByteArray(4)
-            val count = buffered.read(signature)
+            buffered.mark(16)
+            val signature = ByteArray(8)
+            val size = buffered.read(signature)
             buffered.reset()
-            if (count >= 2 && signature[0] == 0x50.toByte() &&
-                signature[1] == 0x4B.toByte()) {
-                buffered.use { archivePending = RecipeArchive.prepare(it) }
-            } else {
-                val bytes = buffered.use { input ->
-                    val out = java.io.ByteArrayOutputStream()
-                    val buffer = ByteArray(4096)
-                    while (true) {
-                        val n = input.read(buffer)
-                        if (n < 0) break
-                        require(out.size() + n <= 1_048_576) { "Recipe text file is too large." }
-                        out.write(buffer, 0, n)
-                    }
-                    out.toByteArray()
-                }
-                val parsed = RecipeParser.parse(String(bytes, Charsets.UTF_8))
-                draft = parsed.recipe
-                existing = false
-                importWarnings = parsed.warnings
-                unplaced = parsed.unplaced
-                screen = "editor"
+            val kind = try {
+                RecipeFileSniffer.kind(signature.copyOf(size.coerceAtLeast(0)),
+                    context.contentResolver.getType(uri))
+            } catch (error: Exception) {
+                buffered.close()
+                throw error
             }
-        }.onFailure { transferMessage = "Import failed: ${it.message}" }
+            when (kind) {
+                RecipeFileSniffer.Kind.PDF -> {
+                    buffered.close()
+                    extractingPdf = true
+                    importScope.launch {
+                        try {
+                            val result = PdfRecipeImporter.import(context, uri)
+                            draft = result.parsed.recipe
+                            existing = false
+                            importWarnings = result.parsed.warnings
+                            unplaced = result.parsed.unplaced
+                            screen = "editor"
+                        } catch (error: Exception) {
+                            transferMessage = "PDF import failed: " +
+                                (error.message ?: "Could not read document.")
+                        } finally { extractingPdf = false }
+                    }
+                }
+                RecipeFileSniffer.Kind.ARCHIVE -> {
+                    buffered.use { archivePending = RecipeArchive.prepare(it) }
+                }
+                RecipeFileSniffer.Kind.TEXT -> {
+                    val bytes = buffered.use { source ->
+                        val out = java.io.ByteArrayOutputStream()
+                        val buffer = ByteArray(4096)
+                        while (true) {
+                            val n = source.read(buffer)
+                            if (n < 0) break
+                            require(out.size() + n <= 1_048_576) { "Recipe text file is too large." }
+                            out.write(buffer, 0, n)
+                        }
+                        out.toByteArray()
+                    }
+                    val parsed = RecipeParser.parse(RecipeFileSniffer.decodeText(bytes))
+                    draft = parsed.recipe
+                    existing = false
+                    importWarnings = parsed.warnings
+                    unplaced = parsed.unplaced
+                    screen = "editor"
+                }
+            }
+        }.onFailure { transferMessage = "Import failed: " + it.message }
     }
     fun shareRecipe(recipe: Recipe) {
         runCatching {
@@ -323,6 +352,15 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
                 }
             )
         }
+        if (extractingPdf) AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Reading PDF offline") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text("Recognizing recipe text from each page. Review the result before saving.")
+            } },
+            confirmButton = { }
+        )
         archivePending?.let { pending ->
             val existingIds = recipes.map { it.id }.toSet()
             val duplicates = pending.duplicateCount(existingIds)
@@ -471,7 +509,9 @@ private fun EditorScreen(context: Context, draft: Recipe, update: (Recipe) -> Un
                 Column(Modifier.padding(12.dp)) {
                     Text("Review imported recipe", fontWeight = FontWeight.Bold)
                     warnings.forEach { Text("• $it") }
-                    if (unplaced.isNotEmpty()) Text("Unplaced text: ${unplaced.joinToString(" | ")}")
+                    if (unplaced.isNotEmpty()) Text("Unplaced lines: " + unplaced.size +
+                        ". Open Original Text below for source details.",
+                        style = MaterialTheme.typography.bodySmall)
                 }
             }
             OutlinedTextField(draft.title, { update(draft.copy(title = it)) }, label = { Text("Recipe title") }, modifier = Modifier.fillMaxWidth())
@@ -711,6 +751,6 @@ private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolea
             }
             Switch(checked = timerSound, onCheckedChange = toggleTimerSound)
         }
-        Text("Crumbkeeper 0.1.3-dev — Cook & Share first", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Crumbkeeper 0.1.4-dev — Offline PDF importing", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

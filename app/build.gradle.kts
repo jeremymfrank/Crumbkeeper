@@ -12,14 +12,14 @@ android {
         applicationId = "com.crumbkeeper.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.1.3-dev"
+        versionCode = 5
+        versionName = "0.1.4-dev"
     }
     buildTypes {
         debug {
             // Side-by-side prototype: preserve the original tester install/data, since
             // GitHub-hosted debug signing keys need not match between runner builds.
-            applicationIdSuffix = ".dev3"
+            applicationIdSuffix = ".dev4"
         }
         release {
             isMinifyEnabled = false
@@ -46,6 +46,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
+    // Bundled on-device Latin text recognition; no network/model download required.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
