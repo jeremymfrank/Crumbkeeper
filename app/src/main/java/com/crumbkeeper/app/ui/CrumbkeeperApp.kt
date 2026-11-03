@@ -802,7 +802,9 @@ private fun TimerControls(timer: TimerRun, label: String, now: Long,
         val kind = when(timer.state) {
             "ready" -> "start"; "running" -> "pause"; "paused" -> "resume"; else -> "start"
         }
-        Button(onClick = { action(timer.id, kind) }, modifier = Modifier.width(100.dp)) { Text(labelAction) }
+        Button(onClick = { action(timer.id, kind) }, modifier = Modifier.width(100.dp)) {
+            Text(labelAction, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
         // Reserve the secondary action's space even before starting. Button changes
         // cannot resize the step card or shift the recipe under the cook's finger.
         Box(Modifier.width(80.dp).height(48.dp), contentAlignment = Alignment.Center) {

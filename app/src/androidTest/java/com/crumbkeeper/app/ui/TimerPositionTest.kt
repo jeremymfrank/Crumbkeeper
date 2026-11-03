@@ -2,9 +2,12 @@ package com.crumbkeeper.app.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.crumbkeeper.app.data.*
@@ -16,6 +19,14 @@ class TimerPositionTest {
     @get:Rule val compose = createComposeRule()
 
     @Test fun timerStaysInItsStepAcrossStartPauseResumeFinishDismissAndCancel() {
+        checkTimerPositions(1f)
+    }
+
+    @Test fun largeTextAlsoKeepsTimerPositionsStable() {
+        checkTimerPositions(2f)
+    }
+
+    private fun checkTimerPositions(fontScale: Float) {
         val preset = TimerPreset(id = "rise", label = "Rise", durationSeconds = 2700)
         val recipe = Recipe(id = "bread", title = "Bread", steps = (1..12).map { index ->
             RecipeStep(id = "step-$index", instruction = "Recipe instruction $index.",
@@ -23,7 +34,8 @@ class TimerPositionTest {
         })
         var runtime by mutableStateOf(TimerRun(preset.id, 2_700_000))
         compose.setContent {
-            MaterialTheme {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+              MaterialTheme {
                 CookingScreen(recipe, SessionSnapshot(recipe.id, timers = mapOf(runtime.id to runtime)), 1000,
                     onIngredient = {}, onStep = {}, onTimer = { _, action ->
                         runtime = when (action) {
@@ -32,6 +44,7 @@ class TimerPositionTest {
                             else -> TimerRun(preset.id, 2_700_000)
                         }
                     }, finish = {})
+              }
             }
         }
         compose.onNodeWithTag("timer-rise").performScrollTo()
