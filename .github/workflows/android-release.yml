@@ -74,10 +74,9 @@ jobs:
           arch: x86_64
           profile: ${{ matrix.profile }}
           disable-animations: true
-          script: gradle :app:connectedDebugAndroidTest --stacktrace
-      - name: Collect visual checks
-        if: always()
-        run: adb pull /sdcard/Android/data/com.crumbkeeper.app.debug/files/visual-checks/ visual-checks/ || true
+          script: |
+            gradle :app:connectedDebugAndroidTest --stacktrace
+            adb pull /sdcard/Android/data/com.crumbkeeper.app.debug/files/visual-checks/ visual-checks/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
