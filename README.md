@@ -4,9 +4,13 @@
 
 Crumbkeeper keeps ingredients, instructions, photos, notes and independent timers in one full-screen cooking view on tablets and phones. No account or cloud service is required.
 
-## Android release — 1.0.0
+## Android release — 1.1.0
 
-The app is named **Crumbkeeper**. Distribution files are `Crumbkeeper-v1.0.0.apk` and `Crumbkeeper-v1.0.0-Android.zip`. See the [release and installation guide](docs/RELEASE.md).
+The app is named **Crumbkeeper**. Distribution files are `Crumbkeeper-v1.1.0.apk` and `Crumbkeeper-v1.1.0-Android.zip`. See the [release and installation guide](docs/RELEASE.md).
+
+- Gilded Grimoire: charcoal, warm ivory, antique gold and purple accents.
+- Photo recipe cards, upright camera images and adjustable, non-destructive cover framing.
+- Added timers are available immediately; older saved recipes and backups need no enable step.
 
 - Timers stay in their recipe steps, preserving your reading position.
 - Open or share `.crumbrecipe` and `.crumbbook` files directly into Crumbkeeper.
@@ -15,7 +19,7 @@ The app is named **Crumbkeeper**. Distribution files are `Crumbkeeper-v1.0.0.apk
 - Protected editing, local notes and photos, plus recoverable recipe Trash.
 - Dark theme, checkboxes, screen-awake option and foreground timer sounds.
 
-Android 8.0 or newer is required. Timer alerts run while Cooking Mode is open; locked-screen/background system alarms are outside version 1.0.0.
+Android 8.0 or newer is required. Timer alerts run while Cooking Mode is open; locked-screen/background system alarms are outside this release.
 
 ## Moving from a preview
 

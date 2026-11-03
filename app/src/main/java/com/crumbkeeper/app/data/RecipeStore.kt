@@ -106,6 +106,9 @@ class RecipeStore(context: Context) : SQLiteOpenHelper(context, "crumbkeeper.db"
 fun encodeRecipe(r: Recipe): JSONObject = JSONObject().apply {
     put("id", r.id); put("title", r.title); put("servings", r.servings)
     put("notes", r.notes); put("coverImage", r.coverImage); put("originalText", r.originalText)
+    put("coverFraming", r.coverFraming.normalized().let { framing -> JSONObject().apply {
+        put("x", framing.x.toDouble()); put("y", framing.y.toDouble()); put("zoom", framing.zoom.toDouble())
+    } })
     put("updatedAt", r.updatedAt)
     put("ingredients", JSONArray().apply { r.ingredients.forEach { put(it) } })
     put("steps", JSONArray().apply { r.steps.forEach { step ->
@@ -114,7 +117,8 @@ fun encodeRecipe(r: Recipe): JSONObject = JSONObject().apply {
             put("timers", JSONArray().apply { step.timers.forEach { t ->
                 put(JSONObject().apply {
                     put("id", t.id); put("label", t.label); put("durationSeconds", t.durationSeconds)
-                    put("approved", t.approved)
+                    // Compatibility with older Crumbkeeper readers. Added timers are always available.
+                    put("approved", true)
                 })
             } })
         })
@@ -128,6 +132,10 @@ fun decodeRecipe(json: JSONObject): Recipe {
         id = json.optString("id", newId()), title = json.optString("title"),
         servings = json.optString("servings"), notes = json.optString("notes"),
         coverImage = json.optString("coverImage").takeIf { it.isNotBlank() && it != "null" },
+        coverFraming = json.optJSONObject("coverFraming")?.let { framing ->
+            CoverFraming(framing.optDouble("x", .5).toFloat(), framing.optDouble("y", .5).toFloat(),
+                framing.optDouble("zoom", 1.0).toFloat()).normalized()
+        } ?: CoverFraming(),
         originalText = json.optString("originalText"), updatedAt = json.optLong("updatedAt"),
         ingredients = (0 until ingredients.length()).map { ingredients.optString(it) },
         steps = (0 until steps.length()).map { index ->
@@ -137,7 +145,7 @@ fun decodeRecipe(json: JSONObject): Recipe {
                 timers = (0 until timers.length()).map { tIndex ->
                     val t = timers.optJSONObject(tIndex) ?: JSONObject()
                     TimerPreset(id = t.optString("id", newId()), label = t.optString("label", "Timer"),
-                        durationSeconds = t.optInt("durationSeconds", 0), approved = t.optBoolean("approved", true))
+                        durationSeconds = t.optInt("durationSeconds", 0))
                 })
         }
     )

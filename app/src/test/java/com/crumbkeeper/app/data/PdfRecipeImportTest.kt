@@ -48,7 +48,7 @@ class PdfRecipeImportTest {
         assertEquals(2, parsed.recipe.steps.size)
         assertEquals("Mix the lime juice and spices.", parsed.recipe.steps[0].instruction)
         assertEquals(1, parsed.recipe.steps[1].timers.size)
-        assertFalse(parsed.recipe.steps[1].timers.single().approved)
+        assertEquals(900, parsed.recipe.steps[1].timers.single().durationSeconds)
         assertFalse(cleaned.text.contains("Advertisement"))
         assertFalse(cleaned.text.contains("Nutrition Facts"))
     }

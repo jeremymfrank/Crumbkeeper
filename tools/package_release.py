@@ -72,7 +72,7 @@ import. Android may show Open With; choose Always if desired.
 Attachments can also be shared to Crumbkeeper or opened with Import File.
 Timers stay in their recipe steps through every state. Audible alerts run
 while Cooking Mode is open; locked-screen/background system alarms are
-not included in version 1.0.0.
+not included in this release.
 
 UPDATES
 Future releases use this same application ID and signing key, allowing
@@ -84,6 +84,10 @@ Source commit: {args.source_commit}
 """
     notes = f"""Crumbkeeper {version}
 
+- Gilded Grimoire theme, supplied emblem and adaptive photo recipe cards.
+- Upright camera photos, adjustable cover framing and full-photo viewing.
+- Original photos and framing survive backup and recipe sharing.
+- Added and restored timers are available without an enable/approval step.
 - Timers remain in their recipe steps through start, pause, finish and reset.
 - Timer controls reserve their space to preserve the reading position.
 - Open or share .crumbrecipe and .crumbbook attachments directly into the app.

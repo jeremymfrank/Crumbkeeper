@@ -27,7 +27,15 @@ data class SessionSnapshot(
     val checkedIngredients: Set<Int> = emptySet(),
     val checkedSteps: Set<String> = emptySet(),
     val timers: Map<String, TimerRun> = emptyMap()
-)
+) {
+    /** Recover newly available legacy presets without changing existing running deadlines. */
+    fun withRecipeTimers(recipe: Recipe): SessionSnapshot {
+        if (recipe.id != recipeId) return this
+        val missing = recipe.steps.flatMap { it.timers }.filter { it.durationSeconds > 0 && it.id !in timers }
+            .associate { it.id to TimerRun(it.id, it.durationSeconds.toLong() * 1000) }
+        return copy(timers = timers + missing)
+    }
+}
 
 class CookingSessionStore(context: Context) {
     private val prefs = context.getSharedPreferences("cook-session", Context.MODE_PRIVATE)

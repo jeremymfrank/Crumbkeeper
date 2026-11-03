@@ -21,7 +21,7 @@ The recipe builder is separate from Cooking Mode. Cooking Mode remains a single 
 3. Open Crumbkeeper > **New Recipe** > **Paste Recipe**, and paste from Android's clipboard.
 4. Crumbkeeper performs a **local, offline** parse into recipe title, yield, ingredients/groups, steps, timers, temperatures, images references/notes, and metadata where explicitly present.
 5. A **Review Import** view shows the parsed recipe with editable fields, source text available for side-by-side comparison, and clear **Needs Review** flags.
-6. User fixes anything ambiguous, approves proposed timer presets, optionally attaches images, then chooses **Save Recipe** or **Save as New** when editing a known recipe.
+6. User fixes anything ambiguous, reviews editable timer presets, optionally attaches images, then chooses **Save Recipe** or **Save as New** when editing a known recipe.
 7. The recipe is ready to launch in the full-screen Cooking Mode.
 
 **Optional enhancement:** When the source app exposes a native Android share-text action, Crumbkeeper may register as a receiver for shared text, opening the same Review Import flow. This must be verified with real ChatGPT Android client behavior; clipboard paste is the always-available baseline.
@@ -94,7 +94,7 @@ The recipe builder is separate from Cooking Mode. Cooking Mode remains a single 
 - **No hidden loss:** unclassified lines remain in an **Unplaced text** section, visible and copyable, until resolved.
 - **No mandatory AI:** the first parser should run locally via rule-based/structured extraction. Optional on-device enhanced parsing can be assessed later, but ordinary paste must always function offline.
 - **No timer inference from metadata alone:** `Total time: 60 minutes` is recipe metadata, **not** an automatically inserted step timer.
-- **Durations are suggestions, not commands:** `Let rise 45 minutes` may suggest `Rise — 45 min`, pending user approval.
+- **Durations are suggestions, not commands:** `Let rise 45 minutes` may suggest `Rise — 45 min`, available when the recipe is saved, with no enable checkbox.
 - **Ranges are ambiguous:** `Bake 20–25 minutes` should remain readable as written; allow choosing a preset duration rather than silently taking one end.
 - **Conditional time cues:** `Bake until golden` has no numerical timer; do not manufacture one.
 - **Temperatures are not timer durations:** `Bake at 415°F` belongs to the step, not a countdown.
@@ -143,7 +143,7 @@ Proposed review:
 - Step 2: simmer; **suggested timer: 20 min** (not running)
 - Step 3: bake at **415°F**; **suggested timer: 20 min** (not running)
 - Note: small pinch of baking soda may help crispiness
-- The user can explicitly approve, rename or remove both suggested timers before saving.
+- The user can rename, adjust or remove either preset before saving. Added timers are immediately available in Cooking Mode and start only on request.
 
 ## Data model and implementation notes
 
@@ -157,7 +157,7 @@ Proposed review:
 
 ## Acceptance tests
 
-1. Paste an ordinary ChatGPT recipe containing Markdown heading, ingredient bullets, numbered directions, notes and two cooking durations: draft parses offline; both timer suggestions require approval.
+1. Paste an ordinary ChatGPT recipe containing Markdown heading, ingredient bullets, numbered directions, notes and two cooking durations: draft parses offline; both timer presets are available after saving without approval.
 2. Paste a recipe with no title and vague amounts: raw text is retained, edit remains possible, no details invented.
 3. Paste a range like `Bake 20–25 min at 415°F`: range is flagged; temperature remains part of the instruction.
 4. Paste Unicode fractions and mixed quantities (`½ cup`, `1 1/2 tsp`), compare against preserved source.

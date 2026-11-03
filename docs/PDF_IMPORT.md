@@ -8,7 +8,7 @@ The v0.1.3 importer treated all non-ZIP bytes as UTF-8 text, resulting in 3,335 
 - Use Android PdfRenderer and a **bundled on-device ML Kit Latin OCR model** to read pages offline. Also handles image-only/scanned PDFs when legible.
 - Attempt to isolate Ingredients and Instructions/Directions, remove obvious website extras, and join numbered continuation lines.
 - Preserve the full recognized text in the unsaved draft under **Show Original Text**. The original PDF file itself is not attached to the recipe.
-- Timer mentions detected by the existing parser remain unapproved suggestions, not automatic timers.
+- Recognizable durations create editable timer presets that are available after saving. Timers wait for an explicit Start; ambiguous ranges still require review.
 - Show a progress dialog while scanning instead of blocking with binary data or showing giant unplaced lists.
 - Conservative limits: 25 MB input, 40 pages, 180,000 recognized characters. One bitmap held at a time.
 - Import remains review-first; existing saved recipes cannot be overwritten inadvertently.

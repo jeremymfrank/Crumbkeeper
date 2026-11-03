@@ -15,7 +15,7 @@ class RecipeArchiveTest {
             val bytes = byteArrayOf(0x12, 0x34, 0x56, 0x78)
             image.writeBytes(bytes)
             val recipe = Recipe(title = "Smashed potatoes", ingredients = listOf("1 lb potatoes"),
-                notes = "Golden", coverImage = image.absolutePath,
+                notes = "Golden", coverImage = image.absolutePath, coverFraming = CoverFraming(.2f, .8f, 2f),
                 steps = listOf(RecipeStep(instruction = "Bake 20 minutes",
                     timers = listOf(TimerPreset(label = "Bake", durationSeconds = 1200)))))
             val output = ByteArrayOutputStream()
@@ -26,6 +26,8 @@ class RecipeArchiveTest {
             assertEquals(recipe.id, archive.recipes.single().id)
             assertEquals(1200, archive.recipes.single().steps.single().timers.single().durationSeconds)
             assertArrayEquals(bytes, archive.images.values.single())
+            assertEquals(recipe.coverFraming, archive.recipes.single().coverFraming)
+            assertArrayEquals(bytes, image.readBytes())
             assertFalse(archive.recipes.single().coverImage!!.contains(image.parentFile!!.absolutePath))
         } finally { image.delete() }
     }

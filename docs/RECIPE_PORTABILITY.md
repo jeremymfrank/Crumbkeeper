@@ -1,6 +1,6 @@
-# Crumbkeeper — Backup, Sharing and Text Import (v0.1.2-dev)
+# Crumbkeeper — Backup, Sharing and Text Import (1.1.0)
 
-**Target:** Android v0.1.2-dev, first build for backup/sharing workflows.
+**Target:** Android 1.1.0. Install updates over the signed release; preview migration details are in [RELEASE.md](RELEASE.md). Photo framing and complete original images travel with backups. All positive-duration timer presets are available after restore, including presets carrying obsolete disabled flags.
 
 ## Three user operations
 
@@ -25,8 +25,8 @@ A persistent signing key in secure CI secrets is a release prerequisite. **Never
 - [ ] Export two recipes (one with a photo, one with two timers) to a `.crumbbook`; restore on another app install.
 - [ ] Confirm recipe title, ingredients, instruction text, notes, timer presets and cover photo all survive.
 - [ ] Share one recipe via Quick Share; recipient imports with no network service.
-- [ ] Import a standard ChatGPT Recipe Text v1 block; exact `Timer:` lines become approved timer presets.
-- [ ] Import a normal ChatGPT Markdown recipe without timer directives; time mentions become unapproved suggestions.
+- [ ] Import a standard ChatGPT Recipe Text v1 block; exact `Timer:` lines become ready timer presets.
+- [ ] Import a normal ChatGPT Markdown recipe without timer directives; recognizable durations become editable, ready timer presets.
 - [ ] Import the same archive twice; default import skips existing entries.
 - [ ] Explicitly import **Keep Both**; originals remain intact.
 - [ ] Cancel restore at preview; no database or image files change.
@@ -34,4 +34,4 @@ A persistent signing key in secure CI secrets is a release prerequisite. **Never
 - [ ] Verify backup is saved to an external location and survives uninstall of this *test* app (do not uninstall the current original apps).
 - [ ] Confirm Cooking Mode and its simultaneous timers still work after restore.
 
-Code and CI results must be verified separately from these on-device acceptance tests. No production release is implied.
+Build/CI verification and physical-device acceptance remain distinct; see the release notes for the current release.

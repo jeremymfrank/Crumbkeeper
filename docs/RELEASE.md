@@ -1,13 +1,19 @@
-# Crumbkeeper 1.0.0
+# Crumbkeeper 1.1.0
 
-The release app is named **Crumbkeeper**, with application ID `com.crumbkeeper.app` and version code `10000`.
+The release app is named **Crumbkeeper**, with application ID `com.crumbkeeper.app` and version code `10100`.
 
 Distribution files:
 
-- `Crumbkeeper-v1.0.0.apk` — signed, non-debuggable Android app.
-- `Crumbkeeper-v1.0.0-Android.zip` — the same APK, install/migration instructions, release notes and checksums.
+- `Crumbkeeper-v1.1.0.apk` — signed, non-debuggable Android app.
+- `Crumbkeeper-v1.1.0-Android.zip` — the same APK, install/migration instructions, release notes and checksums.
 
 ## Changes
+
+Gilded Grimoire provides a charcoal/ivory/gold theme, serif headings, plain recipe text, adaptive phone/tablet photo cards, an Add Recipe menu and cookbook tools. The supplied emblem is shown in the header and in full in About. Light appearance remains available.
+
+Photos are decoded off the UI thread at bounded resolution with all eight EXIF rotation/reflection states handled. Card framing uses normalized position and zoom; originals remain unchanged for full viewing, backup and sharing. Existing images default to centered framing. Missing images get an illustrated cover. New imports are limited to the archive's 12 MB photo limit so the cookbook remains portable. See [photo behavior](PHOTOS_AND_FRAMING.md).
+
+Every added timer with a positive duration is available in Cooking Mode. The separate approval checkbox is removed. Old `approved: false` fields are ignored when loading recipes and archives, making previously hidden timers available without re-editing recipes. Timers remain stopped until Start is pressed. The first explicit Timer line replaces inferred timers for its step; subsequent explicit lines preserve independent timers without duplicates.
 
 Timers stay inside their own recipe steps in every state. Secondary actions keep their space before a timer starts, so Cancel or Dismiss cannot resize the card. Starting a timer never creates a section above the recipe.
 
@@ -27,8 +33,10 @@ Keep the private signing key and credentials out of source and public install ZI
 
 ## Existing installations
 
+Install 1.1.0 over the signed 1.0.0 release. The application ID and signing key are unchanged, and the local cookbook is retained. Photo framing is an additive JSON field; old recipes need no destructive database migration. Keep regular cookbook backups.
+
 The latest preview uses `com.crumbkeeper.app.dev5`. Export its cookbook, install the release beside it, then import the backup and verify recipes before removing the preview. The original 0.1.0 prototype used the production package ID with a temporary debug key; preserve its cookbook first if that old installation causes a signature conflict.
 
 ## Timer alerts
 
-Sound runs while Cooking Mode is open. Android background/locked-screen system alarms are outside version 1.0.0.
+Sound runs while Cooking Mode is open. Android background/locked-screen system alarms are outside this release.

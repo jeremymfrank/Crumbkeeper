@@ -7,8 +7,7 @@ fun newId(): String = UUID.randomUUID().toString()
 data class TimerPreset(
     val id: String = newId(),
     val label: String = "Timer",
-    val durationSeconds: Int = 300,
-    val approved: Boolean = true
+    val durationSeconds: Int = 300
 )
 
 data class RecipeStep(
@@ -25,6 +24,7 @@ data class Recipe(
     val steps: List<RecipeStep> = emptyList(),
     val notes: String = "",
     val coverImage: String? = null,
+    val coverFraming: CoverFraming = CoverFraming(),
     val originalText: String = "",
     val updatedAt: Long = System.currentTimeMillis()
 )

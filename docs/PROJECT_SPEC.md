@@ -27,7 +27,7 @@ These requirements reflect the agreed project direction.
 - **Tablet-first, phone-compatible.** Use available space in landscape and portrait rather than forcing a phone-sized interface onto a large tablet.
 - **Single-screen Cooking Mode.** Ingredients, directions, step images, personal notes, and all recipe timers are visible or accessible by scrolling within the same uninterrupted workspace. No tabs, subpages, wizard-style steps, or routine navigation away from the recipe while cooking.
 - **Persistent timer visibility.** Active countdowns must remain accessible when the user scrolls the recipe, including on smaller phones. Timers must never require opening a separate screen.
-- **Multiple independent embedded timers per recipe, including multiple timers on one step if needed.** Timers have names and recipe-defined durations.
+- **Multiple independent embedded timers per recipe, including multiple timers on one step if needed. Added positive-duration timers are available immediately, with no separate approval/enable step; this also applies to restored recipes.** Timers have names and recipe-defined durations.
 - **Timer durations lock when started.** No +/− adjustments or duration edits while running. Pause/resume is allowed; cancel/reset is deliberate and protected against accidental activation.
 - **No automatic timer start from merely opening a recipe.**
 - **Photos and notes.** Recipes support a cover image, optional step images, and user notes.
@@ -61,7 +61,7 @@ These requirements reflect the agreed project direction.
 - Occupies the usable screen with a dark, high-contrast presentation.
 - On large tablets, use a spacious multi-column layout where suitable; on phones, reflow into a readable single-column layout.
 - Keep all relevant recipe content in one workspace. Scrolling is acceptable; switching app pages is not.
-- Put active timers in a persistent region or compact pinned strip when space is constrained.
+- Keep timers anchored inside their original recipe steps in every state. Reserve control space so state changes do not shift the recipe.
 - Offer very large, clearly labeled touch targets and readable typography at arm's length.
 - Support optional ingredient/step checkmarks. These belong to the cooking session and **must not change the saved recipe**.
 - Show timer completion clearly in place, with system-appropriate audible/notification alerting; do not open an unrelated screen.

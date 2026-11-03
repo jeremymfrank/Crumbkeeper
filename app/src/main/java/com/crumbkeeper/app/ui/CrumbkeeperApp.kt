@@ -8,12 +8,10 @@ import android.net.Uri
 import java.io.BufferedInputStream
 import kotlinx.coroutines.launch
 import androidx.core.content.FileProvider
-import android.graphics.BitmapFactory
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,12 +27,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,14 +40,6 @@ import com.crumbkeeper.app.BuildConfig
 import com.crumbkeeper.app.IncomingRecipe
 import kotlinx.coroutines.delay
 import java.io.File
-import java.util.UUID
-
-private val Ink = Color(0xFF100C15)
-private val Surface = Color(0xFF1D1624)
-private val Raised = Color(0xFF2B2232)
-private val Cream = Color(0xFFF1E6D4)
-private val Copper = Color(0xFFB88A53)
-private val Violet = Color(0xFFB34BE4)
 
 @Composable
 fun CrumbkeeperApp(activity: Activity, incoming: IncomingRecipe?, onConsumed: (String) -> Unit) {
@@ -62,14 +49,12 @@ fun CrumbkeeperApp(activity: Activity, incoming: IncomingRecipe?, onConsumed: (S
     var keepAwake by remember { mutableStateOf(prefs.getBoolean("keep-awake", true)) }
     var timerSound by remember { mutableStateOf(prefs.getBoolean("timer-sound", true)) }
     val alertPlayer = remember(context) { TimerAlertPlayer(context) }
-    val colors = if (dark) darkColorScheme(primary = Violet, secondary = Copper, background = Ink,
-        surface = Surface, surfaceVariant = Raised, onBackground = Cream, onSurface = Cream,
-        onPrimary = Color.White) else lightColorScheme(primary = Color(0xFF693C90), secondary = Color(0xFF80552B))
-
     val store = remember { RecipeStore(context) }
     val sessionStore = remember { CookingSessionStore(context) }
     val recipes = remember { mutableStateListOf<Recipe>().apply { addAll(store.all()) } }
-    val recovered = remember { sessionStore.load() }
+    val recovered = remember { sessionStore.load()?.let { previous ->
+        recipes.firstOrNull { it.id == previous.recipeId }?.let { previous.withRecipeTimers(it) }
+    } }
     var cooking by remember { mutableStateOf(recipes.firstOrNull { it.id == recovered?.recipeId }) }
     var snapshot by remember { mutableStateOf(recovered?.takeIf { s -> recipes.any { it.id == s.recipeId } }) }
     var screen by remember { mutableStateOf(if (cooking != null && snapshot != null) "cook" else "library") }
@@ -227,7 +212,7 @@ fun CrumbkeeperApp(activity: Activity, incoming: IncomingRecipe?, onConsumed: (S
         setSnapshot(s.copy(timers = s.timers + (id to updated)))
     }
     fun launchCooking(recipe: Recipe) {
-        val timers = recipe.steps.flatMap { it.timers }.filter { it.approved && it.durationSeconds > 0 }
+        val timers = recipe.steps.flatMap { it.timers }.filter { it.durationSeconds > 0 }
             .associate { it.id to TimerRun(it.id, it.durationSeconds.toLong() * 1000) }
         val s = SessionSnapshot(recipe.id, timers = timers)
         cooking = recipe; setSnapshot(s); screen = "cook"
@@ -281,7 +266,7 @@ fun CrumbkeeperApp(activity: Activity, incoming: IncomingRecipe?, onConsumed: (S
     BackHandler(enabled = screen == "settings") { screen = "library" }
     BackHandler(enabled = screen == "trash") { screen = "library" }
 
-    MaterialTheme(colorScheme = colors) {
+    GildedTheme(dark) {
         androidx.compose.material3.Surface(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
             when (screen) {
                 "library" -> LibraryScreen(recipes, prefs.getString("editor-draft", null) != null,
@@ -494,98 +479,42 @@ fun CrumbkeeperApp(activity: Activity, incoming: IncomingRecipe?, onConsumed: (S
 }
 
 @Composable
-private fun LibraryScreen(recipes: List<Recipe>, hasDraft: Boolean, newRecipe: () -> Unit,
-    importText: (String) -> Unit, resumeDraft: () -> Unit,
-    requestEdit: (Recipe) -> Unit, editCopy: (Recipe) -> Unit,
-    requestTrash: (Recipe) -> Unit,
-    cook: (Recipe) -> Unit, settings: () -> Unit,
-    importFile: () -> Unit, backup: () -> Unit, share: (Recipe) -> Unit) {
-    val clipboard = LocalClipboardManager.current
-    var query by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Crumbkeeper", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary, modifier = Modifier.weight(1f))
-            TextButton(onClick = settings) { Text("Settings") }
-        }
-        Text("Your offline grimoire of recipes", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = newRecipe) { Text("+ New Recipe") }
-            OutlinedButton(onClick = { clipboard.getText()?.text?.toString()?.let(importText) }) { Text("Paste Recipe") }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = importFile) { Text("Import File") }
-            OutlinedButton(onClick = backup, enabled = recipes.isNotEmpty()) { Text("Back Up Cookbook") }
-        }
-        if (hasDraft) OutlinedButton(onClick = resumeDraft) { Text("Resume unsaved draft") }
-        OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
-            label = { Text("Search saved recipes") }, singleLine = true)
-        val filtered = recipes.filter { it.title.contains(query, true) || it.ingredients.any { line -> line.contains(query, true) } }
-        if (filtered.isEmpty()) Text(if (recipes.isEmpty()) "No recipes yet. Create one or paste a recipe from ChatGPT." else "No matching recipes.",
-            modifier = Modifier.padding(top = 18.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(filtered, key = { it.id }) { recipe ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        var optionsOpen by remember(recipe.id) { mutableStateOf(false) }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(recipe.title.ifBlank { "Untitled Recipe" },
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.weight(1f))
-                            Box {
-                                TextButton(onClick = { optionsOpen = true }) {
-                                    Text("⋮ More")
-                                }
-                                DropdownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text("Edit a Copy") },
-                                        onClick = { optionsOpen = false; editCopy(recipe) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Edit Original…") },
-                                        onClick = { optionsOpen = false; requestEdit(recipe) }
-                                    )
-                                    HorizontalDivider()
-                                    DropdownMenuItem(
-                                        text = { Text("Move to Trash…") },
-                                        onClick = { optionsOpen = false; requestTrash(recipe) }
-                                    )
-                                }
-                            }
-                        }
-                        Text("${recipe.ingredients.size} ingredients  •  ${recipe.steps.size} steps" +
-                            if (recipe.servings.isNotBlank()) "  •  ${recipe.servings}" else "", style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(onClick = { cook(recipe) }) { Text("Cook") }
-                            OutlinedButton(onClick = { share(recipe) }) { Text("Share") }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun EditorScreen(context: Context, draft: Recipe, update: (Recipe) -> Unit,
     warnings: List<String>, unplaced: List<String>, existing: Boolean,
     back: () -> Unit, save: () -> Unit, saveCopy: () -> Unit) {
+    val photoScope = rememberCoroutineScope()
+    val currentDraft by rememberUpdatedState(draft)
+    var importingPhoto by remember { mutableStateOf(false) }
+    var photoError by remember { mutableStateOf<String?>(null) }
+    var framingOpen by remember { mutableStateOf(false) }
+    var fullPhotoOpen by remember { mutableStateOf(false) }
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) runCatching {
-            val dir = File(context.filesDir, "recipe-images").apply { mkdirs() }
-            val target = File(dir, "${UUID.randomUUID()}.jpg")
-            context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
-            update(draft.copy(coverImage = target.absolutePath))
+        if (uri != null) photoScope.launch {
+            importingPhoto = true
+            try {
+                val path = RecipePhotos.importPhoto(context, uri)
+                update(currentDraft.copy(coverImage = path, coverFraming = CoverFraming()))
+                framingOpen = true
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                photoError = error.message ?: "Could not open this photo."
+            } finally { importingPhoto = false }
         }
     }
+    if (framingOpen && draft.coverImage != null) PhotoFramingDialog(draft,
+        dismiss = { framingOpen = false }, save = { update(currentDraft.copy(coverFraming = it)); framingOpen = false })
+    if (fullPhotoOpen) FullPhotoDialog(draft) { fullPhotoOpen = false }
+    photoError?.let { message -> AlertDialog(onDismissRequest = { photoError = null },
+        title = { Text("Photo could not be added") }, text = { Text(message) },
+        confirmButton = { TextButton(onClick = { photoError = null }) { Text("OK") } }) }
     var originalOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = back) { Text("‹ Library") }
             Text("Recipe Builder", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            if (!existing) Button(onClick = save, enabled = draft.title.isNotBlank()) { Text("Save Recipe") }
+            if (!existing) Button(onClick = save, enabled = draft.title.isNotBlank() && !importingPhoto) { Text("Save Recipe") }
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -600,8 +529,16 @@ private fun EditorScreen(context: Context, draft: Recipe, update: (Recipe) -> Un
             }
             OutlinedTextField(draft.title, { update(draft.copy(title = it)) }, label = { Text("Recipe title") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(draft.servings, { update(draft.copy(servings = it)) }, label = { Text("Servings / yield") }, modifier = Modifier.fillMaxWidth())
-            Button(onClick = { pickImage.launch("image/*") }) { Text(if (draft.coverImage == null) "Add Cover Photo" else "Replace Cover Photo") }
-            draft.coverImage?.let { CoverImage(it, modifier = Modifier.fillMaxWidth().height(180.dp)) }
+            Button(onClick = { pickImage.launch("image/*") }, enabled = !importingPhoto) {
+                Text(if (importingPhoto) "Adding photo…" else if (draft.coverImage == null) "Add Cover Photo" else "Replace Cover Photo")
+            }
+            if (draft.coverImage != null) {
+                RecipePhoto(draft, Modifier.width(112.dp).aspectRatio(COVER_ASPECT_RATIO), onClick = { fullPhotoOpen = true })
+                Row(Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { framingOpen = true }, modifier = Modifier.weight(1f)) { Text("Adjust framing") }
+                    TextButton(onClick = { fullPhotoOpen = true }, modifier = Modifier.weight(1f)) { Text("View full photo") }
+                }
+            }
             BoxWithConstraints {
                 val wide = maxWidth > 650.dp
                 if (wide) Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -618,10 +555,10 @@ private fun EditorScreen(context: Context, draft: Recipe, update: (Recipe) -> Un
                 if (originalOpen) Text(draft.originalText)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = save, enabled = draft.title.isNotBlank()) {
+                Button(onClick = save, enabled = draft.title.isNotBlank() && !importingPhoto) {
                     Text(if (existing) "Review Changes…" else "Save Recipe")
                 }
-                if (existing) OutlinedButton(onClick = saveCopy) { Text("Save as New") }
+                if (existing) OutlinedButton(onClick = saveCopy, enabled = !importingPhoto) { Text("Save as New") }
             }
             if (existing) Text("Changes stay in a draft until you confirm replacing the saved recipe.",
                 style = MaterialTheme.typography.bodySmall,
@@ -657,9 +594,6 @@ private fun StepEditor(recipe: Recipe, update: (Recipe) -> Unit, modifier: Modif
                     }, label = { Text("Instruction") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                     step.timers.forEach { t ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Checkbox(checked = t.approved, onCheckedChange = { approved ->
-                                update(recipe.replaceTimer(step.id, t.copy(approved = approved)))
-                            })
                             OutlinedTextField(t.label, { label -> update(recipe.replaceTimer(step.id, t.copy(label = label))) },
                                 label = { Text("Timer") }, modifier = Modifier.weight(1f), singleLine = true)
                             OutlinedTextField((t.durationSeconds / 60).toString(), { v ->
@@ -671,7 +605,8 @@ private fun StepEditor(recipe: Recipe, update: (Recipe) -> Unit, modifier: Modif
                                 if (s.id == step.id) s.copy(timers = s.timers.filterNot { it.id == t.id }) else s
                             })) }) { Text("×") }
                         }
-                        if (!t.approved) Text("Approve to include this timer in Cooking Mode", style = MaterialTheme.typography.labelSmall)
+                        if (t.durationSeconds <= 0) Text("Enter a duration above zero.",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                     }
                     TextButton(onClick = { update(recipe.copy(steps = recipe.steps.map { s ->
                         if (s.id == step.id) s.copy(timers = s.timers + TimerPreset(label = "Step ${index+1} Timer")) else s
@@ -688,17 +623,12 @@ private fun Recipe.replaceTimer(stepId: String, next: TimerPreset): Recipe = cop
 })
 
 @Composable
-private fun CoverImage(path: String, modifier: Modifier = Modifier) {
-    val bitmap = remember(path) { runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
-    if (bitmap != null) Image(bitmap = bitmap, contentDescription = "Recipe photograph", modifier = modifier,
-        contentScale = ContentScale.Crop)
-}
-
-@Composable
 internal fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
     onIngredient: (Int) -> Unit, onStep: (String) -> Unit, onTimer: (String, String) -> Unit,
     finish: () -> Unit) {
     var cancelTimer by remember { mutableStateOf<String?>(null) }
+    var fullPhotoOpen by remember { mutableStateOf(false) }
+    if (fullPhotoOpen) FullPhotoDialog(recipe) { fullPhotoOpen = false }
     if (cancelTimer != null) AlertDialog(
         onDismissRequest = { cancelTimer = null },
         title = { Text("Cancel this timer?") },
@@ -713,7 +643,9 @@ internal fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long
             OutlinedButton(onClick = finish) { Text("Finish Cooking") }
         }
         LazyColumn(Modifier.fillMaxSize().testTag("cooking-recipe"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (recipe.coverImage != null) item { CoverImage(recipe.coverImage, Modifier.fillMaxWidth().height(170.dp)) }
+            if (recipe.coverImage != null) item {
+                RecipePhoto(recipe, Modifier.fillMaxWidth().height(170.dp), fit = true, onClick = { fullPhotoOpen = true })
+            }
             item { Text("INGREDIENTS", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold) }
             item {
                 // One list item for the entire ingredient group avoids the 12dp LazyColumn
@@ -733,13 +665,13 @@ internal fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long
                             ) {
                                 Box(
                                     Modifier.size(20.dp)
-                                        .background(if (checked) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        .background(if (checked) MaterialTheme.colorScheme.tertiary else Color.Transparent,
                                             RoundedCornerShape(4.dp))
-                                        .border(1.5.dp, if (checked) MaterialTheme.colorScheme.primary else
+                                        .border(1.5.dp, if (checked) MaterialTheme.colorScheme.tertiary else
                                             MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(4.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    if (checked) Text("✓", color = Color.White,
+                                    if (checked) Text("✓", color = MaterialTheme.colorScheme.onTertiary,
                                         style = MaterialTheme.typography.labelMedium)
                                 }
                                 Text(ingredient, style = MaterialTheme.typography.bodyMedium,
@@ -755,11 +687,13 @@ internal fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = snapshot?.checkedSteps?.contains(step.id) == true, onCheckedChange = { onStep(step.id) })
+                            Checkbox(checked = snapshot?.checkedSteps?.contains(step.id) == true, onCheckedChange = { onStep(step.id) },
+                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.tertiary,
+                                    checkmarkColor = MaterialTheme.colorScheme.onTertiary))
                             Text("Step ${recipe.steps.indexOf(step) + 1}", fontWeight = FontWeight.Bold)
                         }
                         Text(step.instruction, style = MaterialTheme.typography.bodyLarge)
-                        step.timers.filter { it.approved && it.durationSeconds > 0 }.forEach { timer ->
+                        step.timers.filter { it.durationSeconds > 0 }.forEach { timer ->
                             val runtime = snapshot?.timers?.get(timer.id) ?: TimerRun(timer.id, timer.durationSeconds.toLong() * 1000)
                             // A timer belongs to its step for every state. Never remove or pin it.
                             key(timer.id) {
@@ -861,7 +795,7 @@ private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolea
         TextButton(onClick = back) { Text("‹ Library") }
         Text("Settings", style = MaterialTheme.typography.headlineMedium)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Text("Dark theme"); Text("Default Crumbkeeper appearance", style = MaterialTheme.typography.bodySmall) }
+            Column(Modifier.weight(1f)) { Text("Dark theme"); Text("Gilded Grimoire", style = MaterialTheme.typography.bodySmall) }
             Switch(checked = dark, onCheckedChange = toggleDark)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {

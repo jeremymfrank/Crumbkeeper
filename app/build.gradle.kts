@@ -12,8 +12,8 @@ android {
         applicationId = "com.crumbkeeper.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10000
-        versionName = "1.0.0"
+        versionCode = 10100
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     val releaseStore = providers.environmentVariable("CRUMBKEEPER_KEYSTORE_PATH").orNull
@@ -57,6 +57,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")

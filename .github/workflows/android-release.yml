@@ -32,7 +32,7 @@ jobs:
         run: gradle :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease :app:assembleDebugAndroidTest --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: Crumbkeeper-v1.0.0-unsigned
+          name: Crumbkeeper-v1.1.0-unsigned
           path: |
             app/build/outputs/apk/release/app-release-unsigned.apk
             app/build/outputs/apk/release/output-metadata.json
@@ -48,6 +48,10 @@ jobs:
   android-checks:
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [pixel_2, Nexus 10]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -68,13 +72,17 @@ jobs:
           api-level: 35
           target: google_apis
           arch: x86_64
-          profile: pixel_2
+          profile: ${{ matrix.profile }}
           disable-animations: true
           script: gradle :app:connectedDebugAndroidTest --stacktrace
+      - name: Collect visual checks
+        if: always()
+        run: adb pull /sdcard/Android/data/com.crumbkeeper.app.debug/files/visual-checks/ visual-checks/ || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Crumbkeeper-Android-checks
+          name: Crumbkeeper-Android-checks-${{ matrix.profile }}
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            visual-checks/

@@ -30,8 +30,8 @@ A pinch of baking soda may improve the crispiness.
 - Ingredients as individual lines under `## Ingredients`.
 - Numbered instructions under `## Instructions`; `## Directions` also works.
 - To encode an exact timer: `Timer: LABEL | DURATIONs` on the line immediately following its step, where duration is integer **seconds**. `Timer: Simmer | 20 min` also works.
-- Explicit timers are imported as approved **presets**, not started countdowns. They replace any unapproved timer guessed from the same step.
-- Without explicit timer lines, recognizable times in instructions are **suggestions requiring approval** in the editor.
+- Explicit timers are imported as ready **presets**. The first explicit Timer line replaces durations inferred from the same step; additional lines add independent presets. Countdowns wait for Start.
+- Without explicit timer lines, recognizable durations create editable timer presets. Every added timer is available in Cooking Mode; no enable or approval checkbox is required.
 - Optional notes under `## Notes`.
 - Do not invent missing ingredients or times. The editor preserves the pasted original text.
 - No account, API key, special plugin, or active internet is required to import this text.

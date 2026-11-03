@@ -28,6 +28,7 @@ object RecipeParser {
         val steps = mutableListOf<RecipeStep>()
         val unplaced = mutableListOf<String>()
         val warnings = mutableListOf<String>()
+        val explicitTimerSteps = mutableSetOf<String>()
         var title = ""
         var servings = ""
         var notes = ""
@@ -53,11 +54,12 @@ object RecipeParser {
                         unplaced += clean
                     } else {
                         val previous = steps.last()
-                        // Explicit, human-authored timer lines replace unapproved inferred suggestions.
-                        val retained = previous.timers.filter { it.approved }
+                        // The first explicit timer replaces inferred durations; subsequent explicit
+                        // lines add independent timers to the same step without duplicating inference.
+                        val retained = if (explicitTimerSteps.add(previous.id)) emptyList() else previous.timers
                         steps[steps.lastIndex] = previous.copy(timers = retained +
                             TimerPreset(label = match.groupValues[1].trim(),
-                                durationSeconds = seconds.toInt(), approved = true))
+                                durationSeconds = seconds.toInt()))
                     }
                 }
                 return@forEach
@@ -117,7 +119,7 @@ object RecipeParser {
                 instruction.contains("rest", true) -> "Rest"
                 else -> "Step Timer"
             }
-            TimerPreset(label = label, durationSeconds = value, approved = false)
+            TimerPreset(label = label, durationSeconds = value)
         }.filter { it.durationSeconds > 0 }.toList()
         return RecipeStep(instruction = instruction, timers = proposed)
     }

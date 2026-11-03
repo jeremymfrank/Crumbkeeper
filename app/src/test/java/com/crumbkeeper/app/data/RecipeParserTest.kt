@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RecipeParserTest {
-    @Test fun parsesOrdinaryChatGptRecipeAndProposesTimers() {
+    @Test fun parsesOrdinaryChatGptRecipeWithReadyTimers() {
         val input = """# Smashed Golden Potatoes
             |Serves 4
             |## Ingredients
@@ -23,7 +23,7 @@ class RecipeParserTest {
         assertEquals(2, result.recipe.ingredients.size)
         assertEquals(3, result.recipe.steps.size)
         assertEquals(2, result.recipe.steps.sumOf { it.timers.size })
-        assertTrue(result.recipe.steps.flatMap { it.timers }.all { !it.approved })
+        assertTrue(result.recipe.steps.flatMap { it.timers }.all { it.durationSeconds > 0 })
         assertTrue(result.recipe.originalText.contains("415°F"))
     }
     @Test fun standardizedChatGptMarkdownImportsExplicitTimer() {
@@ -44,23 +44,23 @@ class RecipeParserTest {
         assertEquals(2, parsed.recipe.steps.size)
         val timers = parsed.recipe.steps.last().timers
         assertEquals(1, timers.size)
-        assertTrue(timers.single().approved)
+        assertEquals("ready", TimerRun(timers.single().id, 1_800_000).state)
         assertEquals(1800, timers.single().durationSeconds)
         assertTrue(parsed.recipe.notes.contains("Cool before slicing"))
     }
 
-    @Test fun exportedTextRoundTripsApprovedTimers() {
+    @Test fun exportedTextRoundTripsAddedTimers() {
         val original = Recipe(title = "Bread", servings = "1 loaf",
             ingredients = listOf("3 cups flour"), notes = "Rest before cutting.",
             steps = listOf(RecipeStep(instruction = "Bake the loaf for 35 minutes.",
-                timers = listOf(TimerPreset(label = "Bake", durationSeconds = 2100, approved = true)))))
+                timers = listOf(TimerPreset(label = "Bake", durationSeconds = 2100)))))
         val text = RecipeTextFormat.toMarkdown(original)
         val parsed = RecipeParser.parse(text).recipe
         assertEquals("Bread", parsed.title)
         assertEquals("1 loaf", parsed.servings)
         assertEquals(original.ingredients, parsed.ingredients)
         assertEquals(2100, parsed.steps.single().timers.single().durationSeconds)
-        assertTrue(parsed.steps.single().timers.single().approved)
+        assertEquals(1, parsed.steps.single().timers.size)
         assertTrue(parsed.notes.contains("Rest before cutting."))
     }
 

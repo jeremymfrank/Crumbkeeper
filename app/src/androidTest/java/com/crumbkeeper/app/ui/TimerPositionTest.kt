@@ -35,7 +35,7 @@ class TimerPositionTest {
         var runtime by mutableStateOf(TimerRun(preset.id, 2_700_000))
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
-              MaterialTheme {
+              GildedTheme {
                 CookingScreen(recipe, SessionSnapshot(recipe.id, timers = mapOf(runtime.id to runtime)), 1000,
                     onIngredient = {}, onStep = {}, onTimer = { _, action ->
                         runtime = when (action) {

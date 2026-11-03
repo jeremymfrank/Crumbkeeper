@@ -12,7 +12,7 @@ object RecipeTextFormat {
         appendLine(); appendLine("## Instructions")
         recipe.steps.forEachIndexed { i, step ->
             appendLine("${i + 1}. ${step.instruction}")
-            step.timers.filter { it.approved && it.durationSeconds > 0 }.forEach {
+            step.timers.filter { it.durationSeconds > 0 }.forEach {
                 appendLine("   Timer: ${it.label} | ${it.durationSeconds}s")
             }
         }
