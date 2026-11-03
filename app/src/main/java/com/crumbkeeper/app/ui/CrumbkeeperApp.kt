@@ -35,11 +35,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.crumbkeeper.app.data.*
+import com.crumbkeeper.app.BuildConfig
+import com.crumbkeeper.app.IncomingRecipe
 import kotlinx.coroutines.delay
 import java.io.File
 import java.util.UUID
@@ -52,7 +55,7 @@ private val Copper = Color(0xFFB88A53)
 private val Violet = Color(0xFFB34BE4)
 
 @Composable
-fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> Unit) {
+fun CrumbkeeperApp(activity: Activity, incoming: IncomingRecipe?, onConsumed: (String) -> Unit) {
     val context: Context = activity
     val prefs = remember { context.getSharedPreferences("crumb-settings", Context.MODE_PRIVATE) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
@@ -93,7 +96,7 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
     val importScope = rememberCoroutineScope()
 
     val saveBackup = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(RecipeArchive.MIME_TYPE)
+        ActivityResultContracts.CreateDocument(RecipeArchive.BOOK_MIME_TYPE)
     ) { uri ->
         if (uri != null) runCatching {
             val all = store.all()
@@ -105,10 +108,8 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
          .onFailure { transferMessage = "Backup failed: ${it.message}" }
     }
 
-    val importDocument = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null && !extractingPdf) runCatching {
+    fun importUri(uri: Uri) {
+        if (!extractingPdf) runCatching {
             val input = context.contentResolver.openInputStream(uri) ?: error("Could not read file.")
             val buffered = BufferedInputStream(input)
             buffered.mark(16)
@@ -165,6 +166,9 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
             }
         }.onFailure { transferMessage = "Import failed: " + it.message }
     }
+    val importDocument = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) importUri(uri) }
     fun shareRecipe(recipe: Recipe) {
         runCatching {
             val directory = File(context.cacheDir, "exports").apply { mkdirs() }
@@ -229,11 +233,15 @@ fun CrumbkeeperApp(activity: Activity, incomingText: String?, onConsumed: () -> 
         cooking = recipe; setSnapshot(s); screen = "cook"
     }
 
-    LaunchedEffect(incomingText, screen) {
-        if (!incomingText.isNullOrBlank() && screen != "cook") {
-            val parsed = RecipeParser.parse(incomingText)
-            newEditor(parsed.recipe, warnings = parsed.warnings, leftover = parsed.unplaced)
-            onConsumed()
+    LaunchedEffect(incoming?.id, screen, extractingPdf) {
+        // Keep cooking and unsaved editing in place; open the queued attachment afterward.
+        if (incoming != null && screen != "cook" && screen != "editor" && !extractingPdf) {
+            incoming.uri?.let(::importUri)
+            incoming.text?.let { text ->
+                val parsed = RecipeParser.parse(text)
+                newEditor(parsed.recipe, warnings = parsed.warnings, leftover = parsed.unplaced)
+            }
+            onConsumed(incoming.id)
         }
     }
     LaunchedEffect(screen) {
@@ -687,10 +695,9 @@ private fun CoverImage(path: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
+internal fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
     onIngredient: (Int) -> Unit, onStep: (String) -> Unit, onTimer: (String, String) -> Unit,
     finish: () -> Unit) {
-    val active = snapshot?.timers.orEmpty().values.filter { it.state in listOf("running", "paused", "done") }
     var cancelTimer by remember { mutableStateOf<String?>(null) }
     if (cancelTimer != null) AlertDialog(
         onDismissRequest = { cancelTimer = null },
@@ -705,16 +712,7 @@ private fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
                 overflow = TextOverflow.Ellipsis)
             OutlinedButton(onClick = finish) { Text("Finish Cooking") }
         }
-        if (active.isNotEmpty()) {
-            Text("ACTIVE TIMERS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(bottom = 6.dp)) {
-                active.forEach { t ->
-                    val preset = recipe.steps.flatMap { it.timers }.firstOrNull { it.id == t.id }
-                    TimerControls(t, preset?.label ?: "Timer", now, onTimer, compact = true, onCancel = { cancelTimer = it })
-                }
-            }
-        }
-        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().testTag("cooking-recipe"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (recipe.coverImage != null) item { CoverImage(recipe.coverImage, Modifier.fillMaxWidth().height(170.dp)) }
             item { Text("INGREDIENTS", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold) }
             item {
@@ -753,7 +751,8 @@ private fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
             }
             item { Text("INSTRUCTIONS", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold) }
             items(recipe.steps, key = { it.id }) { step ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Card(modifier = Modifier.fillMaxWidth().testTag("step-${step.id}"),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = snapshot?.checkedSteps?.contains(step.id) == true, onCheckedChange = { onStep(step.id) })
@@ -762,7 +761,10 @@ private fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
                         Text(step.instruction, style = MaterialTheme.typography.bodyLarge)
                         step.timers.filter { it.approved && it.durationSeconds > 0 }.forEach { timer ->
                             val runtime = snapshot?.timers?.get(timer.id) ?: TimerRun(timer.id, timer.durationSeconds.toLong() * 1000)
-                            if (runtime.state == "ready") TimerControls(runtime, timer.label, now, onTimer, compact = false, onCancel = { cancelTimer = it })
+                            // A timer belongs to its step for every state. Never remove or pin it.
+                            key(timer.id) {
+                                TimerControls(runtime, timer.label, now, onTimer, onCancel = { cancelTimer = it })
+                            }
                         }
                     }
                 }
@@ -778,15 +780,17 @@ private fun CookingScreen(recipe: Recipe, snapshot: SessionSnapshot?, now: Long,
 
 @Composable
 private fun TimerControls(timer: TimerRun, label: String, now: Long,
-    action: (String, String) -> Unit, compact: Boolean, onCancel: (String) -> Unit) {
+    action: (String, String) -> Unit, onCancel: (String) -> Unit) {
     val secs = (timer.remaining(now) + 999L) / 1000L
     val formatted = "%02d:%02d".format(secs / 60, secs % 60)
-    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)).padding(8.dp),
+    Row(Modifier.fillMaxWidth().heightIn(min = 80.dp).testTag("timer-${timer.id}")
+        .semantics { stateDescription = timer.state }
+        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(if (timer.state == "done") "Finished!" else formatted,
-                style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(formatted, maxLines = 1,
+                style = MaterialTheme.typography.headlineSmall,
                 color = if (timer.state == "done") MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface)
         }
         val labelAction = when(timer.state) {
@@ -798,9 +802,13 @@ private fun TimerControls(timer: TimerRun, label: String, now: Long,
         val kind = when(timer.state) {
             "ready" -> "start"; "running" -> "pause"; "paused" -> "resume"; else -> "start"
         }
-        Button(onClick = { action(timer.id, kind) }) { Text(labelAction) }
-        if (timer.state == "done") TextButton(onClick = { action(timer.id, "dismiss") }) { Text("Dismiss") }
-        if (timer.state == "running" || timer.state == "paused") TextButton(onClick = { onCancel(timer.id) }) { Text("Cancel") }
+        Button(onClick = { action(timer.id, kind) }, modifier = Modifier.width(100.dp)) { Text(labelAction) }
+        // Reserve the secondary action's space even before starting. Button changes
+        // cannot resize the step card or shift the recipe under the cook's finger.
+        Box(Modifier.width(80.dp).height(48.dp), contentAlignment = Alignment.Center) {
+            if (timer.state == "done") TextButton(onClick = { action(timer.id, "dismiss") }) { Text("Dismiss") }
+            if (timer.state == "running" || timer.state == "paused") TextButton(onClick = { onCancel(timer.id) }) { Text("Cancel") }
+        }
     }
 }
 
@@ -871,6 +879,6 @@ private fun SettingsScreen(dark: Boolean, keepAwake: Boolean, timerSound: Boolea
         }
         Text("Recipes in Trash can be restored. Permanent deletion requires separate confirmation.",
             style = MaterialTheme.typography.bodySmall)
-        Text("Crumbkeeper 0.1.5-testers — Shared test build", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Crumbkeeper ${BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -14,7 +14,8 @@ import java.util.zip.ZipOutputStream
 
 /** Offline versioned ZIP archives. Recipes, pictures and timer presets travel together. */
 object RecipeArchive {
-    const val MIME_TYPE = "application/zip"
+    const val MIME_TYPE = "application/vnd.crumbkeeper.recipe"
+    const val BOOK_MIME_TYPE = "application/vnd.crumbkeeper.book"
     private const val VERSION = 1
     private const val MAX_RECIPES = 3000
     private const val MAX_ENTRIES = 6500

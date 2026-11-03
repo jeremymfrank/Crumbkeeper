@@ -10,19 +10,25 @@ import androidx.compose.runtime.setValue
 import com.crumbkeeper.app.ui.CrumbkeeperApp
 
 class MainActivity : ComponentActivity() {
-    private var incomingRecipeText by mutableStateOf<String?>(null)
+    private var incomingRecipe by mutableStateOf<IncomingRecipe?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        incomingRecipeText = intent?.takeIf { it.action == Intent.ACTION_SEND && it.type == "text/plain" }
-            ?.getStringExtra(Intent.EXTRA_TEXT)
-        setContent { CrumbkeeperApp(this, incomingRecipeText) { incomingRecipeText = null } }
+        incomingRecipe = IncomingRecipe.from(intent)
+        setContent {
+            CrumbkeeperApp(this, incomingRecipe) { requestId ->
+                if (incomingRecipe?.id == requestId) {
+                    incomingRecipe = null
+                    // A consumed attachment must not reopen after Activity recreation.
+                    setIntent(Intent(this, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        incomingRecipeText = intent.takeIf { it.action == Intent.ACTION_SEND && it.type == "text/plain" }
-            ?.getStringExtra(Intent.EXTRA_TEXT)
+        incomingRecipe = IncomingRecipe.from(intent)
     }
 }

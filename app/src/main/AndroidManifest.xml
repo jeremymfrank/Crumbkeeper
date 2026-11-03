@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="false"
-        android:label="Crumbkeeper Backup Test"
+        android:label="Crumbkeeper"
         android:theme="@style/Theme.Crumbkeeper"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
@@ -16,7 +16,8 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-        <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize">
+        <activity android:name=".MainActivity" android:exported="true"
+            android:launchMode="singleTop" android:configChanges="orientation|screenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -25,6 +26,56 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="application/vnd.crumbkeeper.recipe" />
+                <data android:mimeType="application/vnd.crumbkeeper.book" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- MIME matching also covers document-provider URIs whose paths hide the filename. -->
+            <intent-filter android:label="Import into Crumbkeeper">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/vnd.crumbkeeper.recipe" />
+                <data android:mimeType="application/vnd.crumbkeeper.book" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- Named attachments may arrive with a wrong MIME type, or no MIME type. -->
+            <intent-filter android:label="Import into Crumbkeeper">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathSuffix=".crumbrecipe" />
+                <data android:pathSuffix=".crumbbook" />
+                <data android:pathPattern=".*\\.crumbrecipe" />
+                <data android:pathPattern=".*\\..*\\.crumbrecipe" />
+                <data android:pathPattern=".*\\..*\\..*\\.crumbrecipe" />
+                <data android:pathPattern=".*\\.crumbbook" />
+                <data android:pathPattern=".*\\..*\\.crumbbook" />
+                <data android:pathPattern=".*\\..*\\..*\\.crumbbook" />
+            </intent-filter>
+            <intent-filter android:label="Import into Crumbkeeper">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathSuffix=".crumbrecipe" />
+                <data android:pathSuffix=".crumbbook" />
+                <data android:pathPattern=".*\\.crumbrecipe" />
+                <data android:pathPattern=".*\\..*\\.crumbrecipe" />
+                <data android:pathPattern=".*\\..*\\..*\\.crumbrecipe" />
+                <data android:pathPattern=".*\\.crumbbook" />
+                <data android:pathPattern=".*\\..*\\.crumbbook" />
+                <data android:pathPattern=".*\\..*\\..*\\.crumbbook" />
             </intent-filter>
         </activity>
     </application>
